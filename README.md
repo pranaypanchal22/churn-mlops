@@ -5,7 +5,8 @@ frontend, CI, Docker, monitoring, and a controlled retraining workflow.
 
 > Learning and portfolio project. Not for making real customer decisions.
 
-**Status:** Phase 1 (data inspection) done. The full README comes in Phase 9.
+**Status:** Phases 1–2 done (data profiling, schema-aware validation pipeline). The full README
+comes in Phase 9.
 
 ## Data
 
@@ -19,12 +20,16 @@ The dataset is **not** in Git. To provide it:
 
 License status: **unknown, must be verified** on the Kaggle dataset page.
 
-## Setup and Phase 1 commands
+Raw columns are mapped to a canonical schema through a versioned YAML mapping. See
+[docs/schema_mapping.md](docs/schema_mapping.md).
+
+## Setup and commands
 
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"   # Linux/macOS: .venv/bin/python
 .venv/Scripts/python scripts/profile_data.py      # writes reports/data_profile.{json,md}
+.venv/Scripts/python scripts/prepare_data.py      # validate + write data/processed/telco_kaggle_canonical.csv
 .venv/Scripts/python -m pytest
 .venv/Scripts/ruff check . && .venv/Scripts/ruff format --check .
 ```

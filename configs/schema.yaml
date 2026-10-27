@@ -1,0 +1,122 @@
+# Canonical model schema: the dataset-independent contract between data, model, and API.
+#
+# Source files never reach the model directly. A mapping config (configs/mappings/*.yaml)
+# translates source columns and values into these canonical names and tokens.
+# Bump schema_version on any change to fields, types, allowed values, or ranges; trained
+# models record the version they were trained with.
+
+schema_version: "1.0.0"
+
+target:
+  name: churn
+  # Canonical tokens produced by the mapping. Encoded as 1 (positive) / 0 (negative).
+  positive_value: "yes"
+  negative_value: "no"
+  description: Customer left within the dataset's observation period.
+
+# role:
+#   feature  - available to the model.
+#   audit    - validated and kept in processed data for fairness/subgroup review only;
+#              never used as a model input.
+# required: false means a source may omit the field. A missing *required* field is an error.
+# max_missing_rate applies after cleaning; the model pipeline imputes remaining gaps.
+fields:
+  - name: tenure_months
+    dtype: integer
+    min: 0
+    max: 120
+    description: Months the customer has been with the provider.
+
+  - name: monthly_charges
+    dtype: float
+    min: 0
+    max: 1000
+    description: Current monthly bill amount.
+
+  - name: total_charges
+    dtype: float
+    min: 0
+    max: 100000
+    max_missing_rate: 0.01
+    description: Cumulative amount billed. See mapping cleaning rules for blank handling.
+
+  - name: contract
+    dtype: category
+    allowed_values: [month_to_month, one_year, two_year]
+
+  - name: payment_method
+    dtype: category
+    allowed_values: [electronic_check, mailed_check, bank_transfer_auto, credit_card_auto]
+
+  - name: paperless_billing
+    dtype: category
+    allowed_values: ["yes", "no"]
+
+  - name: senior_citizen
+    dtype: category
+    allowed_values: ["yes", "no"]
+
+  - name: partner
+    dtype: category
+    allowed_values: ["yes", "no"]
+
+  - name: dependents
+    dtype: category
+    allowed_values: ["yes", "no"]
+
+  - name: phone_service
+    dtype: category
+    allowed_values: ["yes", "no"]
+
+  - name: multiple_lines
+    dtype: category
+    allowed_values: ["yes", "no", no_phone_service]
+
+  - name: internet_service
+    dtype: category
+    allowed_values: [dsl, fiber_optic, "no"]
+
+  - name: online_security
+    dtype: category
+    allowed_values: ["yes", "no", no_internet_service]
+
+  - name: online_backup
+    dtype: category
+    allowed_values: ["yes", "no", no_internet_service]
+
+  - name: device_protection
+    dtype: category
+    allowed_values: ["yes", "no", no_internet_service]
+
+  - name: tech_support
+    dtype: category
+    allowed_values: ["yes", "no", no_internet_service]
+
+  - name: streaming_tv
+    dtype: category
+    allowed_values: ["yes", "no", no_internet_service]
+
+  - name: streaming_movies
+    dtype: category
+    allowed_values: ["yes", "no", no_internet_service]
+
+  # Kept out of the model on purpose: a protected attribute is only useful here for checking
+  # whether error rates differ across groups.
+  - name: gender
+    dtype: category
+    role: audit
+    required: false
+    allowed_values: [female, male]
+
+# Source columns whose names match these patterns (case-insensitive regex) may never be
+# mapped to a feature or audit field. They identify customers or are derived from the outcome.
+forbidden_source_patterns:
+  - "customer\\s*_?id"
+  - "loyalty"
+  - "churn"
+  - "reason"
+  - "score"
+  - "cltv"
+  - "lifetime\\s*value"
+  - "customer\\s*status"
+  - "satisfaction"

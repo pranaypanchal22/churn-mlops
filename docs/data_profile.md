@@ -67,7 +67,7 @@ other files in the same archive do contain such columns.
 - For tenure ≥ 1, `Total Charges` is close to `Tenure × Monthly Charges`: ratio p01 = 0.855,
   median = 1.0, p99 = 1.159. No row has a total below its monthly charge.
 
-**Rule adopted (Phase 2):** strip whitespace, then parse as a number. Blank → missing. If tenure is 0 and the total
+**Rule adopted (Phase 2, `cleaning.fill_rules` in the mapping):** strip whitespace, then parse as a number. Blank → missing. If tenure is 0 and the total
 is missing, set it to `0.0`: a new customer has not been billed yet, which fits the
 evidence above. Any other unparseable value is a **validation error**, not a silent
 fill. This decision depends on this dataset, and it is recorded in the cleaning config.

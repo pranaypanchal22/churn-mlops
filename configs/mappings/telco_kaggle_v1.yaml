@@ -1,0 +1,84 @@
+# Mapping: Kaggle telecom archive -> canonical schema.
+# Source file: CustomerChurn.csv (see docs/data_profile.md for the profile this is based on).
+#
+# Every source column must be accounted for: mapped, an identifier, excluded, or ignored.
+# Anything else is reported as unexpected (and fails the run when unexpected_columns: error).
+
+mapping_name: telco_kaggle
+mapping_version: "1.0.0"
+schema_version: "1.0.0"
+description: Kaggle "CustomerChurn.csv" (IBM Telco sample layout plus LoyaltyID).
+
+unexpected_columns: error
+
+# canonical_field: [accepted source column names]. Exactly one alias must be present in
+# the file; zero (for a required field) or several is an error. Aliases are listed by hand;
+# nothing is matched fuzzily.
+columns:
+  churn: [Churn]
+  tenure_months: [Tenure]
+  monthly_charges: [Monthly Charges]
+  total_charges: [Total Charges]
+  contract: [Contract]
+  payment_method: [Payment Method]
+  paperless_billing: [Paperless Billing]
+  senior_citizen: [Senior Citizen]
+  partner: [Partner]
+  dependents: [Dependents]
+  phone_service: [Phone Service]
+  multiple_lines: [Multiple Lines]
+  internet_service: [Internet Service]
+  online_security: [Online Security]
+  online_backup: [Online Backup]
+  device_protection: [Device Protection]
+  tech_support: [Tech Support]
+  streaming_tv: [Streaming TV]
+  streaming_movies: [Streaming Movies]
+
+# Dropped before anything else; never reach processed data.
+identifier_columns: [Customer ID, LoyaltyID]
+# Target-derived or otherwise unsafe columns. None in this file.
+excluded_columns: []
+# Present but intentionally unused.
+ignored_columns: []
+
+# source value -> canonical token. A value not listed here is an invalid value, not a guess.
+# Keys starting with "_" are YAML anchors for reuse and are not fields.
+# Quote Yes/No: unquoted, YAML parses them as booleans.
+value_maps:
+  _yes_no: &yes_no {"Yes": "yes", "No": "no"}
+  churn: *yes_no
+  paperless_billing: *yes_no
+  senior_citizen: *yes_no
+  partner: *yes_no
+  dependents: *yes_no
+  phone_service: *yes_no
+  contract:
+    Month-to-month: month_to_month
+    One year: one_year
+    Two year: two_year
+  payment_method:
+    Electronic check: electronic_check
+    Mailed check: mailed_check
+    Bank transfer (automatic): bank_transfer_auto
+    Credit card (automatic): credit_card_auto
+  multiple_lines: {"Yes": "yes", "No": "no", "No phone service": no_phone_service}
+  internet_service: {"DSL": dsl, "Fiber optic": fiber_optic, "No": "no"}
+  online_security: &internet_addon {"Yes": "yes", "No": "no", "No internet service": no_internet_service}
+  online_backup: *internet_addon
+  device_protection: *internet_addon
+  tech_support: *internet_addon
+  streaming_tv: *internet_addon
+  streaming_movies: *internet_addon
+
+cleaning:
+  # Applied to every mapped column before parsing.
+  strip_whitespace: true
+  blank_as_missing: true
+  # Profile finding: all 11 blank Total Charges rows have tenure 0 (not yet billed).
+  # Only that combination is filled; a blank with tenure > 0 stays missing and is reported.
+  fill_rules:
+    - field: total_charges
+      value: 0.0
+      when_field: tenure_months
+      when_equals: 0

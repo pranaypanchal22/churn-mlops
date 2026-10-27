@@ -1,0 +1,77 @@
+# Mapping: IBM Telco extended file -> canonical schema.
+# Source file: Telco_customer_churn.csv from the same Kaggle archive.
+#
+# Kept as a worked example of onboarding a second source. It shows renamed columns
+# (Tenure Months, Churn Label), an optional audit field (Gender), and explicit exclusion of
+# outcome-derived columns that would leak the target.
+
+mapping_name: ibm_telco
+mapping_version: "1.0.0"
+schema_version: "1.0.0"
+description: IBM Telco "Telco_customer_churn.csv" with location and churn-outcome columns.
+
+unexpected_columns: error
+
+columns:
+  churn: [Churn Label]
+  tenure_months: [Tenure Months]
+  monthly_charges: [Monthly Charges]
+  total_charges: [Total Charges]
+  contract: [Contract]
+  payment_method: [Payment Method]
+  paperless_billing: [Paperless Billing]
+  senior_citizen: [Senior Citizen]
+  partner: [Partner]
+  dependents: [Dependents]
+  phone_service: [Phone Service]
+  multiple_lines: [Multiple Lines]
+  internet_service: [Internet Service]
+  online_security: [Online Security]
+  online_backup: [Online Backup]
+  device_protection: [Device Protection]
+  tech_support: [Tech Support]
+  streaming_tv: [Streaming TV]
+  streaming_movies: [Streaming Movies]
+  gender: [Gender]
+
+identifier_columns: [CustomerID]
+# Derived from the churn outcome: using any of these as a feature leaks the label.
+excluded_columns: [Churn Value, Churn Score, CLTV, Churn Reason]
+# Location is constant (single state) or near-unique (lat/long, zip); not used in v1.
+ignored_columns: [Count, Country, State, City, Zip Code, Lat Long, Latitude, Longitude]
+
+value_maps:
+  _yes_no: &yes_no {"Yes": "yes", "No": "no"}
+  churn: *yes_no
+  paperless_billing: *yes_no
+  senior_citizen: *yes_no
+  partner: *yes_no
+  dependents: *yes_no
+  phone_service: *yes_no
+  gender: {"Female": female, "Male": male}
+  contract:
+    Month-to-month: month_to_month
+    One year: one_year
+    Two year: two_year
+  payment_method:
+    Electronic check: electronic_check
+    Mailed check: mailed_check
+    Bank transfer (automatic): bank_transfer_auto
+    Credit card (automatic): credit_card_auto
+  multiple_lines: {"Yes": "yes", "No": "no", "No phone service": no_phone_service}
+  internet_service: {"DSL": dsl, "Fiber optic": fiber_optic, "No": "no"}
+  online_security: &internet_addon {"Yes": "yes", "No": "no", "No internet service": no_internet_service}
+  online_backup: *internet_addon
+  device_protection: *internet_addon
+  tech_support: *internet_addon
+  streaming_tv: *internet_addon
+  streaming_movies: *internet_addon
+
+cleaning:
+  strip_whitespace: true
+  blank_as_missing: true
+  fill_rules:
+    - field: total_charges
+      value: 0.0
+      when_field: tenure_months
+      when_equals: 0
