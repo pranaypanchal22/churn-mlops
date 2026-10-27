@@ -2,7 +2,9 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import yaml
 
+from churn.data.synthetic import write_synthetic_csv
 from churn.schema.config import load_mapping, load_schema
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,3 +67,29 @@ def ibm_mapping(schema):
 @pytest.fixture
 def raw():
     return make_raw()
+
+
+def make_smoke_config(directory: Path) -> Path:
+    """Small, fast training config on synthetic data (no real dataset needed)."""
+    raw = write_synthetic_csv(directory / "raw.csv", n=500, seed=2)
+    cfg = {
+        "config_version": "test",
+        "random_seed": 7,
+        "data": {
+            "raw_path": str(raw),
+            "schema_path": str(SCHEMA_PATH),
+            "mapping_path": str(KAGGLE_MAPPING_PATH),
+        },
+        "split": {"validation_size": 0.2, "test_size": 0.2},
+        "models": {
+            "logistic_regression": {"max_iter": 500, "class_weight": "balanced"},
+            "random_forest": {"n_estimators": 30, "min_samples_leaf": 5},
+        },
+        "threshold": {"strategy": "precision_at_min_recall", "min_recall": 0.7},
+        "explanations": {"permutation_repeats": 2},
+        "output": {"registry_dir": str(directory / "registry")},
+        "mlflow": {"enabled": False},
+    }
+    path = directory / "train.yaml"
+    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    return path

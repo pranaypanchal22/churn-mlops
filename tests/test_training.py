@@ -1,12 +1,10 @@
 import json
-from pathlib import Path
 
 import numpy as np
 import pytest
-import yaml
 
 from churn.data.pipeline import prepare_frame
-from churn.data.synthetic import make_synthetic_raw, write_synthetic_csv
+from churn.data.synthetic import make_synthetic_raw
 from churn.features.build import (
     LeakageError,
     assert_no_leakage,
@@ -17,7 +15,7 @@ from churn.features.build import (
 from churn.models import registry
 from churn.models.evaluate import choose_threshold, threshold_metrics
 from churn.models.train import SplitCfg, split_data, train
-from tests.conftest import KAGGLE_MAPPING_PATH, SCHEMA_PATH
+from tests.conftest import make_smoke_config
 
 
 @pytest.fixture
@@ -99,40 +97,15 @@ def test_threshold_metrics_label_rule():
     assert m["confusion_matrix"] == {"tn": 1, "fp": 1, "fn": 0, "tp": 2}
 
 
-def _smoke_config(directory: Path) -> Path:
-    raw = write_synthetic_csv(directory / "raw.csv", n=500, seed=2)
-    cfg = {
-        "config_version": "test",
-        "random_seed": 7,
-        "data": {
-            "raw_path": str(raw),
-            "schema_path": str(SCHEMA_PATH),
-            "mapping_path": str(KAGGLE_MAPPING_PATH),
-        },
-        "split": {"validation_size": 0.2, "test_size": 0.2},
-        "models": {
-            "logistic_regression": {"max_iter": 500, "class_weight": "balanced"},
-            "random_forest": {"n_estimators": 30, "min_samples_leaf": 5},
-        },
-        "threshold": {"strategy": "precision_at_min_recall", "min_recall": 0.7},
-        "explanations": {"permutation_repeats": 2},
-        "output": {"registry_dir": str(directory / "registry")},
-        "mlflow": {"enabled": False},
-    }
-    path = directory / "train.yaml"
-    path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
-    return path
-
-
 @pytest.fixture
 def smoke_config(tmp_path):
-    return _smoke_config(tmp_path)
+    return make_smoke_config(tmp_path)
 
 
 @pytest.fixture(scope="module")
 def trained(tmp_path_factory):
     # One shared run for the read-only artifact checks keeps the suite fast.
-    return train(_smoke_config(tmp_path_factory.mktemp("trained")))
+    return train(make_smoke_config(tmp_path_factory.mktemp("trained")))
 
 
 def test_training_registers_complete_artifact(trained):
@@ -170,7 +143,7 @@ def test_loaded_artifact_predicts_valid_probabilities(trained, schema, kaggle_ma
 
 
 def test_training_is_reproducible(trained, tmp_path):
-    again = train(_smoke_config(tmp_path)).metadata
+    again = train(make_smoke_config(tmp_path)).metadata
     assert again["metrics"] == trained.metadata["metrics"]
     assert again["threshold"] == trained.metadata["threshold"]
 
