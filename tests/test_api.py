@@ -32,14 +32,6 @@ VALID = {
 }
 
 
-@pytest.fixture(scope="module")
-def trained_registry(tmp_path_factory):
-    result = train(make_smoke_config(tmp_path_factory.mktemp("api")))
-    reg = result.version_dir.parent
-    registry.set_current(reg, result.version, "test")
-    return reg, result.version
-
-
 def _client(registry_dir, **overrides) -> TestClient:
     settings = ApiSettings(
         registry_dir=registry_dir, schema_path=SCHEMA_PATH, max_batch_size=3, **overrides
@@ -48,8 +40,8 @@ def _client(registry_dir, **overrides) -> TestClient:
 
 
 @pytest.fixture
-def client(trained_registry):
-    with _client(trained_registry[0]) as c:
+def client(promoted_registry):
+    with _client(promoted_registry[0]) as c:
         yield c
 
 
@@ -57,10 +49,10 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
-def test_ready_reports_loaded_version(client, trained_registry):
+def test_ready_reports_loaded_version(client, promoted_registry):
     r = client.get("/ready")
     assert r.status_code == 200
-    assert r.json() == {"ready": True, "model_version": trained_registry[1]}
+    assert r.json() == {"ready": True, "model_version": promoted_registry[1]}
 
 
 def test_not_ready_without_promoted_model(tmp_path):
@@ -72,8 +64,8 @@ def test_not_ready_without_promoted_model(tmp_path):
         assert c.get("/model-info").status_code == 503
 
 
-def test_pinned_unknown_version_is_not_ready(trained_registry):
-    with _client(trained_registry[0], model_version="nope") as c:
+def test_pinned_unknown_version_is_not_ready(promoted_registry):
+    with _client(promoted_registry[0], model_version="nope") as c:
         assert c.get("/ready").status_code == 503
 
 
@@ -89,13 +81,13 @@ def test_schema_version_mismatch_is_not_ready(tmp_path_factory):
         assert r.status_code == 503 and "schema" in r.json()["detail"]
 
 
-def test_predict_valid_request(client, trained_registry):
+def test_predict_valid_request(client, promoted_registry):
     r = client.post("/predict", json=VALID)
     assert r.status_code == 200
     body = r.json()
     assert set(body) == {"churn_probability", "risk_label", "threshold", "model_version", "note"}
     assert 0 <= body["churn_probability"] <= 1
-    assert body["model_version"] == trained_registry[1]
+    assert body["model_version"] == promoted_registry[1]
     expected = "high" if body["churn_probability"] >= body["threshold"] else "low"
     assert body["risk_label"] == expected
     assert "estimate" in body["note"]
@@ -161,9 +153,9 @@ def test_batch_error_points_at_item(client):
     assert r.json()["errors"][0]["field"] == "customers.1.contract"
 
 
-def test_model_info(client, trained_registry):
+def test_model_info(client, promoted_registry):
     info = client.get("/model-info").json()
-    assert info["model_version"] == trained_registry[1]
+    assert info["model_version"] == promoted_registry[1]
     assert info["schema_version"] == "1.0.0"
     assert [f["name"] for f in info["input_schema"]] == list(VALID)
     assert "not causal" in info["model_signals"]["caveat"]

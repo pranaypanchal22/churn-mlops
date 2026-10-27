@@ -5,8 +5,8 @@ frontend, CI, Docker, monitoring, and a controlled retraining workflow.
 
 > Learning and portfolio project. Not for making real customer decisions.
 
-**Status:** Phases 1–4 done (data profiling, schema-aware validation, training and evaluation,
-prediction API).
+**Status:** Phases 1–5 done (data profiling, schema-aware validation, training and evaluation,
+prediction API, Streamlit frontend).
 The full README comes in Phase 9.
 
 ## Data
@@ -28,15 +28,17 @@ Raw columns are mapped to a canonical schema through a versioned YAML mapping. S
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev,tracking]"   # Linux/macOS: .venv/bin/python; drop tracking to skip MLflow
+.venv/Scripts/python -m pip install -e ".[dev,tracking,frontend]"   # Linux/macOS: .venv/bin/python; tracking (MLflow) is optional
 .venv/Scripts/python scripts/profile_data.py      # writes reports/data_profile.{json,md}
 .venv/Scripts/python scripts/prepare_data.py      # validate + write data/processed/telco_kaggle_canonical.csv
 .venv/Scripts/python scripts/train.py             # registers a candidate in models/registry/ (not served)
 .venv/Scripts/python scripts/promote.py --list     # list versions; promote with --version V --reason "..."
 .venv/Scripts/python -m uvicorn churn.api.app:app --port 8000   # API; docs at /docs
+.venv/Scripts/python -m streamlit run frontend/app.py         # UI at http://localhost:8501 (needs the API)
 .venv/Scripts/python -m pytest
 .venv/Scripts/ruff check . && .venv/Scripts/ruff format --check .
 ```
 
 Training method and actual results: [docs/model_evaluation.md](docs/model_evaluation.md).
 API endpoints, configuration, and examples: [docs/api.md](docs/api.md).
+Frontend behaviour and error states: [docs/frontend.md](docs/frontend.md).

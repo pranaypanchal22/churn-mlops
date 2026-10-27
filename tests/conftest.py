@@ -5,6 +5,8 @@ import pytest
 import yaml
 
 from churn.data.synthetic import write_synthetic_csv
+from churn.models import registry
+from churn.models.train import train
 from churn.schema.config import load_mapping, load_schema
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,3 +95,12 @@ def make_smoke_config(directory: Path) -> Path:
     path = directory / "train.yaml"
     path.write_text(yaml.safe_dump(cfg), encoding="utf-8")
     return path
+
+
+@pytest.fixture(scope="session")
+def promoted_registry(tmp_path_factory):
+    """A registry with one synthetic-data model already promoted. Returns (dir, version)."""
+    result = train(make_smoke_config(tmp_path_factory.mktemp("promoted")))
+    reg = result.version_dir.parent
+    registry.set_current(reg, result.version, "test fixture")
+    return reg, result.version

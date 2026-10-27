@@ -1,0 +1,3 @@
+# Runtime deps for the frontend image only (no model or data libraries).
+streamlit>=1.40,<2
+httpx>=0.27,<1
