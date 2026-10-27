@@ -1,0 +1,44 @@
+# --- Data: never commit datasets (raw or derived) ---
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+*.zip
+*.xlsx
+
+# --- Generated reports, model artifacts, experiment tracking ---
+reports/*
+!reports/.gitkeep
+models/*
+!models/.gitkeep
+mlruns/
+mlartifacts/
+logs/
+*.log
+*.jsonl
+
+# --- Secrets and local environment ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "churn"
+version = "0.1.0"
+description = "Portfolio project: end-to-end customer churn prediction with MLOps practices."
+readme = "README.md"
+# CI and Docker use 3.11; upper bound keeps us on versions the pinned libs support.
+requires-python = ">=3.11,<3.14"
+# Dependencies are added phase by phase so each phase only pulls what it uses.
+dependencies = [
+    "pandas>=2.2,<2.3",
+    "numpy>=1.26,<2.3",
+    "pyyaml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+    "ruff>=0.9,<0.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
