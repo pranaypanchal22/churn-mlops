@@ -12,6 +12,7 @@ reports/*
 models/*
 !models/.gitkeep
 mlruns/
+mlflow.db
 mlartifacts/
 logs/
 *.log

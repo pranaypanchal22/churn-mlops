@@ -5,8 +5,8 @@ frontend, CI, Docker, monitoring, and a controlled retraining workflow.
 
 > Learning and portfolio project. Not for making real customer decisions.
 
-**Status:** Phases 1–2 done (data profiling, schema-aware validation pipeline). The full README
-comes in Phase 9.
+**Status:** Phases 1–3 done (data profiling, schema-aware validation, training and evaluation).
+The full README comes in Phase 9.
 
 ## Data
 
@@ -27,9 +27,13 @@ Raw columns are mapped to a canonical schema through a versioned YAML mapping. S
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"   # Linux/macOS: .venv/bin/python
+.venv/Scripts/python -m pip install -e ".[dev,tracking]"   # Linux/macOS: .venv/bin/python; drop tracking to skip MLflow
 .venv/Scripts/python scripts/profile_data.py      # writes reports/data_profile.{json,md}
 .venv/Scripts/python scripts/prepare_data.py      # validate + write data/processed/telco_kaggle_canonical.csv
+.venv/Scripts/python scripts/train.py             # registers a candidate in models/registry/ (not served)
+.venv/Scripts/python scripts/promote.py --list     # list versions; promote with --version V --reason "..."
 .venv/Scripts/python -m pytest
 .venv/Scripts/ruff check . && .venv/Scripts/ruff format --check .
 ```
+
+Training method and actual results: [docs/model_evaluation.md](docs/model_evaluation.md).

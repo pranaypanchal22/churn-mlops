@@ -1,0 +1,56 @@
+# Training configuration. `python scripts/train.py --config configs/train.yaml`
+# Everything that affects the trained model lives here or in the schema/mapping it points
+# to; a copy of this file is saved with every model version.
+
+config_version: "1.0.0"
+random_seed: 42
+
+data:
+  raw_path: data/raw/CustomerChurn.csv
+  schema_path: configs/schema.yaml
+  mapping_path: configs/mappings/telco_kaggle_v1.yaml
+
+# Fractions of the full dataset; the remainder is the training set (60/20/20 here).
+# All splits are stratified on the target.
+split:
+  validation_size: 0.2
+  test_size: 0.2
+
+# Candidates are compared on the validation set only. average_precision (PR-AUC) is used
+# because the positive class is ~27% and outreach decisions depend on the precision/recall
+# trade-off rather than on overall accuracy.
+selection_metric: average_precision
+
+models:
+  logistic_regression:
+    C: 1.0
+    max_iter: 2000
+    class_weight: balanced
+  random_forest:
+    n_estimators: 300
+    min_samples_leaf: 5
+    max_features: sqrt
+    class_weight: balanced
+    n_jobs: -1
+
+# Operating goal for a retention-outreach list: find at least `min_recall` of churners,
+# and among thresholds that do, pick the one with the highest precision (fewest wasted
+# contacts). Chosen on validation data; the test set is never used for this.
+threshold:
+  strategy: precision_at_min_recall   # or: max_f1
+  min_recall: 0.70
+
+# Model-level signals: permutation importance on validation data. Associational only.
+explanations:
+  permutation_repeats: 5
+
+output:
+  registry_dir: models/registry
+  reports_dir: reports
+
+mlflow:
+  # Logs to a local SQLite store if mlflow is installed (pip install -e ".[tracking]").
+  # Browse with: mlflow ui --backend-store-uri sqlite:///mlflow.db
+  enabled: true
+  tracking_uri: sqlite:///mlflow.db
+  experiment_name: churn
