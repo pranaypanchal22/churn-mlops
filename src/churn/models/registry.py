@@ -24,6 +24,7 @@ import joblib
 
 MODEL_FILE = "model.joblib"
 METADATA_FILE = "metadata.json"
+REFERENCE_PROFILE_FILE = "reference_profile.json"
 CURRENT_FILE = "current.json"
 AUDIT_FILE = "promotions.jsonl"
 
@@ -120,3 +121,11 @@ def set_current(registry_dir: Path, version: str, reason: str) -> dict[str, Any]
     tmp.write_text(json.dumps(pointer, indent=2), encoding="utf-8")
     tmp.replace(Path(registry_dir) / CURRENT_FILE)
     return pointer
+
+
+def read_reference_profile(registry_dir: Path, version: str) -> dict[str, Any] | None:
+    """Training-time input/score profile, or None for versions trained before it existed."""
+    path = Path(registry_dir) / version / REFERENCE_PROFILE_FILE
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))

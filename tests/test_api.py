@@ -164,13 +164,29 @@ def test_model_info(client, promoted_registry):
     assert info["threshold"]["selected_on"] == "validation"
 
 
-def test_logs_do_not_contain_payload(client, caplog):
-    with caplog.at_level(logging.DEBUG):
+def test_logs_do_not_contain_payload(client):
+    from churn.api.observability import JsonFormatter
+
+    lines: list[str] = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            lines.append(JsonFormatter().format(record))
+
+    logger = logging.getLogger("churn.api")
+    handler = Capture()
+    logger.addHandler(handler)
+    try:
         client.post("/predict", json={**VALID, "monthly_charges": 87.65})
         client.post("/predict", json={**VALID, "contract": "secret-value"})
-    text = caplog.text + " ".join(str(r.__dict__) for r in caplog.records)
+    finally:
+        logger.removeHandler(handler)
+    text = "\n".join(lines)
     assert "87.65" not in text and "secret-value" not in text
-    assert any(r.getMessage() == "request" for r in caplog.records)
+    events = [json.loads(line) for line in lines]
+    requests = [e for e in events if e["event"] == "request"]
+    assert [r["status"] for r in requests] == [200, 422]
+    assert all(r["route"] == "/predict" and "latency_ms" in r for r in requests)
 
 
 def test_ci_smoke_fixture_matches_schema(client):

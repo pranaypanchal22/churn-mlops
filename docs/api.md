@@ -23,6 +23,8 @@ FastAPI service that serves the **promoted** model from the local registry. Inte
 |---|---|---|
 | GET | `/health` | Process is up. Always 200 while the server runs. |
 | GET | `/ready` | 200 with `model_version` when a model is loaded; **503** with a reason otherwise |
+| GET | `/metrics` | Prometheus metrics (no payload data) |
+| GET | `/monitoring/drift` | Aggregate input/score drift since start; 404 if the model has no reference profile |
 | GET | `/model-info` | Version, model type, schema/mapping versions, threshold, input schema, metrics, model-level signals |
 | POST | `/predict` | One customer |
 | POST | `/predict/batch` | `{"customers": [...]}`, 1 to `CHURN_MAX_BATCH_SIZE` items |
@@ -84,8 +86,8 @@ point at the item, e.g. `customers.1.contract`.
 
 Each request logs the request id (taken from the `X-Request-ID` header or generated, and returned
 in the response), method, path, status, and latency. Request bodies and response contents are
-never logged, and a test checks this. Structured JSON logs and Prometheus metrics are
-added in Phase 8.
+never logged, and a test checks this. Logs are JSON lines. See
+[monitoring.md](monitoring.md) for metrics and drift.
 
 ## Model signals
 

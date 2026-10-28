@@ -40,6 +40,8 @@ from churn.models.evaluate import (
     ranking_metrics,
     threshold_metrics,
 )
+from churn.models.registry import REFERENCE_PROFILE_FILE
+from churn.monitoring.drift import build_reference_profile
 from churn.schema.config import CanonicalSchema, load_mapping, load_schema
 
 
@@ -351,6 +353,11 @@ def train(config_path: Path) -> TrainResult:
         "validation_report.json": report.model_dump_json(indent=2),
         "pr_curve_validation.csv": pr_curve_frame(y_val.to_numpy(), val_proba).to_csv(index=False),
         "pr_curve_test.csv": pr_curve_frame(y_te.to_numpy(), test_proba).to_csv(index=False),
+        # Aggregate-only snapshot of training inputs and validation scores; the API and
+        # drift reports compare incoming data against it.
+        REFERENCE_PROFILE_FILE: json.dumps(
+            build_reference_profile(X_tr, features, val_proba, thr["threshold"]), indent=2
+        ),
     }
     vdir = registry.save_version(cfg.output.registry_dir, version, pipe, metadata, files)
     metadata = registry.read_metadata(cfg.output.registry_dir, version)

@@ -15,5 +15,6 @@ class ApiSettings(BaseSettings):
     # Serve this exact version instead of the promoted one (e.g. to pin during a rollback).
     model_version: str | None = None
     schema_path: Path = Path("configs/schema.yaml")
+    monitoring_config_path: Path = Path("configs/monitoring.yaml")
     max_batch_size: int = Field(default=100, ge=1, le=1000)
     log_level: str = "INFO"

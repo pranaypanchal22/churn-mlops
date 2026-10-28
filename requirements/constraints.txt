@@ -9,6 +9,7 @@ joblib==1.6.0
 mlflow==3.17.2
 numpy==2.2.6
 pandas==2.2.3
+prometheus-client==0.26.0
 pydantic==2.14.1
 pydantic-settings==2.16.1
 pytest==8.4.2

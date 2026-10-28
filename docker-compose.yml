@@ -3,6 +3,7 @@
 #   docker compose up --build -d                       # serve (needs a promoted model)
 #   docker compose --profile tools run --rm trainer    # train a candidate from data/raw
 #   docker compose --profile tools run --rm trainer python scripts/promote.py --list
+#   docker compose --profile monitoring up -d          # + Prometheus on :9090 (optional)
 #
 # Settings come from .env (copy .env.example). Nothing here needs credentials.
 
@@ -52,6 +53,25 @@ services:
         condition: service_healthy
     mem_limit: 512m
 
+  prometheus:
+    # Optional: docker compose --profile monitoring up -d  ->  http://localhost:9090
+    image: prom/prometheus:v3.5.0
+    profiles: ["monitoring"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - api
+    mem_limit: 512m
+
   trainer:
     # Same image as the API; runs scripts instead of the server.
     image: churn-api:local
@@ -70,3 +90,6 @@ services:
       - ./models:/app/models
       - ./reports:/app/reports
     command: ["python", "scripts/train.py", "--config", "configs/train.yaml"]
+
+volumes:
+  prometheus-data:

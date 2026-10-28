@@ -6,10 +6,13 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from churn.features.build import FeatureSet, to_model_frame
 from churn.models import registry
+from churn.monitoring.drift import MonitoringConfig
+from churn.monitoring.live import LiveMonitor
 from churn.schema.config import CanonicalSchema
 
 log = logging.getLogger("churn.api")
@@ -21,6 +24,7 @@ class ModelService:
     metadata: dict[str, Any] = field(default_factory=dict)
     features: FeatureSet | None = None
     not_ready_reason: str | None = "model not loaded"
+    monitor: LiveMonitor = field(default_factory=lambda: LiveMonitor(None, MonitoringConfig()))
 
     @property
     def ready(self) -> bool:
@@ -35,7 +39,11 @@ class ModelService:
         return float(self.metadata["threshold"]["threshold"])
 
     def load(
-        self, registry_dir, schema: CanonicalSchema, pinned_version: str | None = None
+        self,
+        registry_dir,
+        schema: CanonicalSchema,
+        pinned_version: str | None = None,
+        monitoring: MonitoringConfig | None = None,
     ) -> None:
         """Load the pinned or promoted version. Failures leave the service not ready."""
         try:
@@ -69,11 +77,19 @@ class ModelService:
             numeric=f["numeric"], categorical=f["categorical"], categories={}
         )
         self.not_ready_reason = None
-        log.info("model_loaded", extra={"model_version": version})
+        profile = registry.read_reference_profile(registry_dir, version)
+        self.monitor = LiveMonitor(profile, monitoring or MonitoringConfig())
+        log.info(
+            "model_loaded",
+            extra={"model_version": version, "drift_monitoring": self.monitor.enabled},
+        )
 
     def predict_proba(self, rows: list[dict[str, Any]]) -> list[float]:
         X = to_model_frame(pd.DataFrame(rows), self.features)
-        return [float(p) for p in self.pipeline.predict_proba(X)[:, 1]]
+        proba = np.asarray(self.pipeline.predict_proba(X)[:, 1], dtype=float)
+        # Only aggregate bin counts are kept; the rows themselves are discarded here.
+        self.monitor.record(X, proba)
+        return [float(p) for p in proba]
 
     def label(self, probability: float) -> str:
         # Same rule as training: probability >= threshold is the positive class.

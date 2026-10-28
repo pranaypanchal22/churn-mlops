@@ -5,8 +5,8 @@ frontend, CI, Docker, monitoring, and a controlled retraining workflow.
 
 > Learning and portfolio project. Not for making real customer decisions.
 
-**Status:** Phases 1–7 done (data profiling, schema-aware validation, training and evaluation,
-prediction API, Streamlit frontend, tests and CI, Docker).
+**Status:** Phases 1–8 done (data profiling, schema-aware validation, training and evaluation,
+prediction API, Streamlit frontend, tests and CI, Docker, monitoring and gated retraining).
 The full README comes in Phase 9.
 
 ## Data
@@ -55,3 +55,4 @@ Training method and actual results: [docs/model_evaluation.md](docs/model_evalua
 API endpoints, configuration, and examples: [docs/api.md](docs/api.md).
 Frontend behaviour and error states: [docs/frontend.md](docs/frontend.md).
 Tests, coverage, and the CI pipeline: [docs/testing_ci.md](docs/testing_ci.md).
+Monitoring, drift vs performance, and gated retraining: [docs/monitoring.md](docs/monitoring.md).

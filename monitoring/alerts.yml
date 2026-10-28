@@ -1,0 +1,49 @@
+# Alert conditions, visible on the Prometheus "Alerts" page. No notification channel is
+# configured (no Alertmanager); wiring one up is a deployment decision.
+groups:
+  - name: churn-api-health
+    rules:
+      - alert: ChurnModelNotReady
+        expr: churn_model_ready == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: API is up but has no usable model (see /ready for the reason).
+
+      - alert: ChurnHighServerErrorRate
+        expr: |
+          sum(rate(churn_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(churn_http_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: More than 5% of requests are failing with 5xx.
+
+      - alert: ChurnSlowPredictions
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(churn_http_request_duration_seconds_bucket{route="/predict"}[5m]))) > 0.5
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: p95 /predict latency above 500 ms.
+
+  - name: churn-data-drift
+    rules:
+      # Drift alerts need enough traffic to mean anything (min_samples in monitoring.yaml).
+      - alert: ChurnFeatureDrift
+        expr: churn_feature_psi > 0.25 and on() churn_monitored_rows >= 200
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: "Input drift on {{ $labels.feature }} (PSI {{ $value | printf \"%.2f\" }})."
+          description: >-
+            Incoming data differs from training data. This is not proof the model is worse;
+            collect outcomes and run scripts/drift_report.py with labels before retraining.
+
+      - alert: ChurnPredictionDrift
+        expr: churn_prediction_psi > 0.25 and on() churn_monitored_rows >= 200
+        for: 30m
+        labels: {severity: warning}
+        annotations:
+          summary: Predicted-probability distribution has shifted from validation.

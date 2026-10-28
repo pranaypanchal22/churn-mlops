@@ -1,0 +1,9 @@
+# Drift thresholds for the API's live monitor and scripts/drift_report.py.
+# PSI (Population Stability Index) rules of thumb: < 0.1 stable, 0.1-0.25 moderate shift,
+# > 0.25 large shift. These are conventions, not guarantees; tune once real traffic exists.
+psi_warn: 0.1
+psi_alert: 0.25
+# Fewer rows than this -> status "insufficient_data" (PSI on small samples is noise).
+min_samples: 200
+# Warn when the share of customers labelled high-risk moves this far from validation.
+flag_rate_warn_delta: 0.10

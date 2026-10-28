@@ -1,0 +1,23 @@
+# Acceptance criteria a retrained candidate must meet before it MAY be promoted.
+# Passing never promotes on its own: scripts/retrain.py only promotes with --promote.
+#
+# Candidate and current model are scored on the SAME rows: the candidate's held-out test
+# split. Absolute floors are set just below the first baseline's measured test results
+# (PR-AUC 0.634, recall 0.709; see docs/model_evaluation.md). They are portfolio defaults,
+# not business-validated requirements.
+
+policy_version: "1.0.0"
+
+# Absolute floors for the candidate on its test split.
+min_average_precision: 0.55
+min_recall: 0.65            # at the candidate's own validation-chosen threshold
+min_precision: 0.45
+
+# Allowed regression versus the current model on the same rows (candidate - current).
+max_average_precision_drop: 0.01
+max_roc_auc_drop: 0.01
+max_brier_increase: 0.02
+
+# The API refuses models trained on a different schema version, so a candidate on a new
+# schema needs a coordinated API change, not an automatic promotion.
+require_same_schema_version: true

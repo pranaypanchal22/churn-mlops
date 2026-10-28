@@ -104,12 +104,17 @@ def _examples(values: pd.Series) -> list[str]:
 
 
 def _resolve_columns(
-    raw_columns: list[str], schema: CanonicalSchema, mapping: SourceMapping
+    raw_columns: list[str],
+    schema: CanonicalSchema,
+    mapping: SourceMapping,
+    require_target: bool = True,
 ) -> tuple[dict[str, str], list[Issue]]:
     present = set(raw_columns)
     resolution: dict[str, str] = {}
     issues: list[Issue] = []
-    required = {f.name for f in schema.fields if f.required} | {schema.target.name}
+    required = {f.name for f in schema.fields if f.required}
+    if require_target:
+        required.add(schema.target.name)
 
     for canonical, aliases in mapping.columns.items():
         found = [a for a in aliases if a in present]
@@ -287,9 +292,16 @@ def prepare_frame(
     schema: CanonicalSchema,
     mapping: SourceMapping,
     source_info: dict[str, Any] | None = None,
+    require_target: bool = True,
 ) -> PipelineResult:
-    """Run the full map/clean/validate pipeline on an already-loaded raw table."""
-    resolution, issues = _resolve_columns(raw.columns.tolist(), schema, mapping)
+    """Run the full map/clean/validate pipeline on an already-loaded raw table.
+
+    require_target=False is for scoring/monitoring batches whose outcomes are not known
+    yet: a missing target column is then allowed, but a present one is still validated.
+    """
+    resolution, issues = _resolve_columns(
+        raw.columns.tolist(), schema, mapping, require_target=require_target
+    )
     raw_cols = set(raw.columns)
     report_kwargs: dict[str, Any] = {
         "created_at_utc": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -389,28 +401,33 @@ def prepare_frame(
             )
 
     tgt = schema.target
-    target_raw = text[tgt.name]
-    target_tokens, found = _convert_category(
-        tgt.name,
-        target_raw,
-        {tgt.positive_value, tgt.negative_value},
-        vmaps.get(tgt.name),
-        resolution[tgt.name],
-    )
-    issues += found
-    target_missing = target_raw.isna()
-    if target_missing.any():
-        issues.append(
-            Issue(
-                severity="error",
-                code="missing_target",
-                field=tgt.name,
-                source_column=resolution[tgt.name],
-                count=int(target_missing.sum()),
-                message=f"Target '{tgt.name}' is missing in {int(target_missing.sum())} row(s).",
-            )
+    if tgt.name in resolution:
+        target_raw = text[tgt.name]
+        target_tokens, found = _convert_category(
+            tgt.name,
+            target_raw,
+            {tgt.positive_value, tgt.negative_value},
+            vmaps.get(tgt.name),
+            resolution[tgt.name],
         )
-    out[tgt.name] = (target_tokens == tgt.positive_value).astype("Int64").mask(target_tokens.isna())
+        issues += found
+        target_missing = target_raw.isna()
+        if target_missing.any():
+            issues.append(
+                Issue(
+                    severity="error",
+                    code="missing_target",
+                    field=tgt.name,
+                    source_column=resolution[tgt.name],
+                    count=int(target_missing.sum()),
+                    message=(
+                        f"Target '{tgt.name}' is missing in {int(target_missing.sum())} row(s)."
+                    ),
+                )
+            )
+        out[tgt.name] = (
+            (target_tokens == tgt.positive_value).astype("Int64").mask(target_tokens.isna())
+        )
 
     data = pd.DataFrame(out)
     allowed_cols = set(schema.field_names) | {tgt.name}
@@ -427,7 +444,9 @@ def prepare_frame(
         cleaning_actions=cleaning_actions,
         target_distribution={
             str(k): int(v) for k, v in data[tgt.name].value_counts(dropna=False).items()
-        },
+        }
+        if tgt.name in data
+        else {},
         duplicate_canonical_rows=int(data.duplicated().sum()),
         issues=issues,
         **report_kwargs,
@@ -435,8 +454,10 @@ def prepare_frame(
     return PipelineResult(data=data, report=report)
 
 
-def prepare_csv(path: Path, schema: CanonicalSchema, mapping: SourceMapping) -> PipelineResult:
+def prepare_csv(
+    path: Path, schema: CanonicalSchema, mapping: SourceMapping, require_target: bool = True
+) -> PipelineResult:
     path = Path(path)
     raw = read_raw_csv(path)
     info = {"path": path.as_posix(), "sha256": file_sha256(path), "rows": len(raw)}
-    return prepare_frame(raw, schema, mapping, source_info=info)
+    return prepare_frame(raw, schema, mapping, source_info=info, require_target=require_target)

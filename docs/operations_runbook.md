@@ -1,7 +1,8 @@
 # Operations runbook (local)
 
 How to set up, train, serve, and recover the project on one machine. Nothing here needs cloud
-accounts or credentials. Monitoring and retraining procedures are added in Phase 8.
+accounts or credentials. Monitoring and retraining are explained in
+[monitoring.md](monitoring.md); the routine commands are in section 4.
 
 ## 1. First run from a clean checkout
 
@@ -96,9 +97,10 @@ and the project needs none.
 | `CHURN_MODEL_VERSION` | API | empty, meaning serve the promoted version |
 | `CHURN_MAX_BATCH_SIZE` | API | 100 |
 | `CHURN_LOG_LEVEL` | API | INFO |
+| `CHURN_MONITORING_CONFIG_PATH` | API | `configs/monitoring.yaml` |
 | `CHURN_API_URL` | Frontend | `http://localhost:8000` (`http://api:8000` in compose) |
 | `CHURN_API_TIMEOUT` | Frontend | 5 s |
-| `API_PORT` / `FRONTEND_PORT` | Compose | 8000 / 8501 |
+| `API_PORT` / `FRONTEND_PORT` / `PROMETHEUS_PORT` | Compose | 8000 / 8501 / 9090 |
 
 Timeouts: the frontend gives up on an API call after `CHURN_API_TIMEOUT`. Uvicorn closes idle keep-alive
 connections after 5 s and allows 10 s for a graceful shutdown.
@@ -111,7 +113,12 @@ connections after 5 s and allows 10 s for a graceful shutdown.
 | Promote a version | `scripts/promote.py --version V --reason "..."`, then `docker compose restart api` |
 | Roll back | Promote the previous version (it's in `current.json → previous_version`), then restart the API. Or set `CHURN_MODEL_VERSION=V` in `.env` and restart. |
 | Audit promotions | `models/registry/promotions.jsonl` (append-only) |
-| Tail logs | `docker compose logs -f api` |
+| Tail logs | `docker compose logs -f api` (one JSON object per line, no payloads) |
+| Check live drift | `curl localhost:8000/monitoring/drift` (since the API started) |
+| Check a batch file | `scripts/drift_report.py --input batch.csv` (exit 3 means drift alert) |
+| Retrain (judge only) | `scripts/retrain.py --data new.csv`, then read `reports/retraining/<run>/decision.json` |
+| Retrain and promote if it passes | `scripts/retrain.py --data new.csv --promote --reason "..."`, then `docker compose restart api` |
+| Prometheus (optional) | `docker compose --profile monitoring up -d` → http://localhost:9090 |
 
 ## 5. Troubleshooting
 
@@ -122,6 +129,8 @@ connections after 5 s and allows 10 s for a graceful shutdown.
 | `/ready` returns 503 "schema" | Model was trained on a different schema version | Retrain with the current schema, or pin an older version together with its schema |
 | UI says "service isn't reachable" | API is down or the URL is wrong | `docker compose ps`; check `CHURN_API_URL` |
 | `frontend` never starts in compose | API healthcheck failing | `docker compose logs api` |
+| `/monitoring/drift` returns 404 | Served model was trained before reference profiles existed | Retrain (`scripts/retrain.py`) and promote the candidate |
+| Drift alert fired | Incoming inputs differ from training | Read the batch report, find out *why* the population changed, and collect outcomes. Don't retrain or roll back on drift alone. |
 | Trainer: "Dataset not found" / validation errors | Raw file missing or changed | Check the path and SHA-256. Read `reports/validation_*.json`. |
 | Docker: `dockerDesktopLinuxEngine` pipe not found | Docker Desktop engine not running | Open Docker Desktop and wait for "Engine running" |
 | Docker Desktop quits on start. Its log (`%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log`) shows `remove ...\dockerInference` or `...\engine.sock: The file cannot be accessed by the system` | Leftover Unix-socket files that Windows refuses to delete. Seen on this machine's Windows build. | Quit Docker Desktop. Rename `%LOCALAPPDATA%\Docker\run` and `%LOCALAPPDATA%\docker-secrets-engine` (e.g. add `.stale-<date>`). Start Docker again; it recreates both folders. Don't choose "Reset to factory defaults" for this. |

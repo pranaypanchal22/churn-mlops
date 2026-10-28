@@ -6,7 +6,7 @@ VERSION ?=
 REASON ?=
 
 .PHONY: help setup profile validate train promote list api ui test lint format smoke \
-        docker-build up down logs docker-train docker-promote
+        drift retrain docker-build up down logs docker-train docker-promote monitoring-up
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk -F':.*?## ' '{printf "  %-15s %s\n", $$1, $$2}'
@@ -48,6 +48,15 @@ smoke: ## Synthetic end-to-end training (no dataset needed)
 	$(PY) scripts/make_synthetic_data.py --rows 1000
 	$(PY) scripts/train.py --config configs/train_smoke.yaml
 
+INPUT ?=
+DATA ?=
+
+drift: ## Data quality + drift report: make drift INPUT=batch.csv
+	$(PY) scripts/drift_report.py --input "$(INPUT)"
+
+retrain: ## Gated retraining dry run: make retrain DATA=new.csv
+	$(PY) scripts/retrain.py --data "$(DATA)"
+
 docker-build: ## Build API and frontend images
 	docker compose build
 
@@ -56,6 +65,9 @@ up: ## Start API + frontend in Docker
 
 down: ## Stop the stack
 	docker compose down
+
+monitoring-up: ## Start the stack plus optional Prometheus (:9090)
+	docker compose --profile monitoring up -d
 
 logs: ## Follow container logs
 	docker compose logs -f
