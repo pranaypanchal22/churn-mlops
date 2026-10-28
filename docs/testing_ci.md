@@ -31,9 +31,8 @@ Results on 2026-10-27, from actual runs:
   94% across `churn` and `frontend`.
 - Windows / Python 3.11.18 (temporary conda env, installed with `requirements/constraints.txt`):
   97 passed, ruff clean.
-- Linux / Python 3.11: **not run locally yet.** Docker Desktop's engine didn't start during this
-  session. The CI workflow covers this on GitHub's Ubuntu runners. I also checked that every pinned package has a
-  manylinux wheel for Python 3.11.
+- Linux / Python 3.11 (`python:3.11-slim` container, same steps as the workflow): ruff clean,
+  97 passed, smoke run passed (synthetic data → train → promote → serve → `/predict`).
 
 The parts that aren't covered are mainly MLflow logging (optional, and skipped in tests), a few defensive
 branches, and some frontend rendering paths.

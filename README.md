@@ -5,8 +5,8 @@ frontend, CI, Docker, monitoring, and a controlled retraining workflow.
 
 > Learning and portfolio project. Not for making real customer decisions.
 
-**Status:** Phases 1–6 done (data profiling, schema-aware validation, training and evaluation,
-prediction API, Streamlit frontend, tests and CI).
+**Status:** Phases 1–7 done (data profiling, schema-aware validation, training and evaluation,
+prediction API, Streamlit frontend, tests and CI, Docker).
 The full README comes in Phase 9.
 
 ## Data
@@ -24,7 +24,19 @@ License status: **unknown, must be verified** on the Kaggle dataset page.
 Raw columns are mapped to a canonical schema through a versioned YAML mapping. See
 [docs/schema_mapping.md](docs/schema_mapping.md).
 
-## Setup and commands
+## Quick start with Docker
+
+```bash
+cp .env.example .env
+docker compose build
+docker compose --profile tools run --rm trainer          # trains from data/raw, prints the version
+docker compose --profile tools run --rm trainer python scripts/promote.py --version <VERSION> --reason "initial baseline"
+docker compose up -d                                     # UI http://localhost:8501, API http://localhost:8000/docs
+```
+
+Full local operations guide: [docs/operations_runbook.md](docs/operations_runbook.md).
+
+## Setup and commands (local Python)
 
 ```bash
 python -m venv .venv

@@ -1,0 +1,72 @@
+# Local stack: API + Streamlit frontend. Training/promotion run as one-off containers.
+#
+#   docker compose up --build -d                       # serve (needs a promoted model)
+#   docker compose --profile tools run --rm trainer    # train a candidate from data/raw
+#   docker compose --profile tools run --rm trainer python scripts/promote.py --list
+#
+# Settings come from .env (copy .env.example). Nothing here needs credentials.
+
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+  api:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    image: churn-api:local
+    environment:
+      CHURN_MODEL_VERSION: ${CHURN_MODEL_VERSION:-}
+      CHURN_MAX_BATCH_SIZE: ${CHURN_MAX_BATCH_SIZE:-100}
+      CHURN_LOG_LEVEL: ${CHURN_LOG_LEVEL:-INFO}
+    volumes:
+      # Read-only: the API can never change which model is served.
+      - ./models:/app/models:ro
+    ports:
+      - "${API_PORT:-8000}:8000"
+    mem_limit: 1g
+
+  frontend:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    image: churn-frontend:local
+    environment:
+      CHURN_API_URL: http://api:8000
+      CHURN_API_TIMEOUT: ${CHURN_API_TIMEOUT:-5}
+      # Streamlit writes small config/cache files under HOME; keep them on tmpfs.
+      HOME: /tmp
+    ports:
+      - "${FRONTEND_PORT:-8501}:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 512m
+
+  trainer:
+    # Same image as the API; runs scripts instead of the server.
+    image: churn-api:local
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    profiles: ["tools"]
+    # Write files as your host user so models/ and reports/ stay editable outside Docker.
+    user: "${HOST_UID:-10001}:${HOST_GID:-10001}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./reports:/app/reports
+    command: ["python", "scripts/train.py", "--config", "configs/train.yaml"]
