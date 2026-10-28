@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -170,3 +171,10 @@ def test_logs_do_not_contain_payload(client, caplog):
     text = caplog.text + " ".join(str(r.__dict__) for r in caplog.records)
     assert "87.65" not in text and "secret-value" not in text
     assert any(r.getMessage() == "request" for r in caplog.records)
+
+
+def test_ci_smoke_fixture_matches_schema(client):
+    # The CI smoke job posts this file; keep it valid as the schema evolves.
+    fixture = json.loads((Path(__file__).parent / "fixtures" / "predict_request.json").read_text())
+    assert fixture == VALID
+    assert client.post("/predict", json=fixture).status_code == 200

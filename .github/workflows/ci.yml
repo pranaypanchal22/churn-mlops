@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only token: CI never pushes, publishes, or needs secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  MLFLOW_DISABLE_AGENT_HINT: "1"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff (pinned)
+        run: pip install "$(grep -i '^ruff==' requirements/constraints.txt)"
+      - name: Lint
+        run: ruff check .
+      - name: Format check
+        run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the Docker/runtime version; 3.13 is the newest supported.
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements/constraints.txt
+      - name: Install
+        run: pip install -c requirements/constraints.txt -e ".[dev,frontend]"
+      - name: Tests (synthetic data only, no dataset or credentials)
+        run: pytest --cov=churn --cov=frontend --cov-report=term-missing:skip-covered
+
+  smoke:
+    # End-to-end on synthetic data: validate -> train -> promote -> serve -> predict.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    env:
+      CHURN_REGISTRY_DIR: build/smoke-registry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            requirements/constraints.txt
+      - name: Install
+        run: pip install -c requirements/constraints.txt -e .
+      - name: Generate synthetic data
+        run: python scripts/make_synthetic_data.py --rows 1000
+      - name: Validate data
+        run: >
+          python scripts/prepare_data.py
+          --input data/synthetic/CustomerChurn_synthetic.csv
+          --report-dir build/smoke-reports --out-dir build/smoke-processed
+      - name: Train
+        run: python scripts/train.py --config configs/train_smoke.yaml
+      - name: Promote
+        run: |
+          VERSION=$(python -c "from churn.models.registry import list_versions; print(list_versions('$CHURN_REGISTRY_DIR')[-1])")
+          python scripts/promote.py --registry "$CHURN_REGISTRY_DIR" --version "$VERSION" --reason "CI smoke test"
+      - name: Serve and predict
+        run: |
+          uvicorn churn.api.app:app --port 8000 > build/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf localhost:8000/ready && break
+            sleep 1
+          done
+          curl -sf localhost:8000/ready
+          curl -sf -X POST localhost:8000/predict -H "Content-Type: application/json" \
+            -d @tests/fixtures/predict_request.json | tee build/predict.json
+          python - <<'EOF'
+          import json
+          r = json.load(open("build/predict.json"))
+          assert 0 <= r["churn_probability"] <= 1, r
+          assert r["risk_label"] in {"high", "low"}, r
+          assert r["model_version"], r
+          print("smoke prediction OK")
+          EOF
+      - name: API log
+        if: always()
+        run: cat build/api.log || true

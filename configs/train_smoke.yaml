@@ -1,0 +1,44 @@
+# Fast end-to-end training on SYNTHETIC data, used by CI. Exercises the real code path
+# (validation -> training -> threshold -> registry) in seconds without the Kaggle dataset.
+# Metrics from this config are meaningless and must not be reported.
+#
+#   python scripts/make_synthetic_data.py
+#   python scripts/train.py --config configs/train_smoke.yaml
+
+config_version: "smoke-1"
+random_seed: 42
+
+data:
+  raw_path: data/synthetic/CustomerChurn_synthetic.csv
+  schema_path: configs/schema.yaml
+  mapping_path: configs/mappings/telco_kaggle_v1.yaml
+
+split:
+  validation_size: 0.2
+  test_size: 0.2
+
+selection_metric: average_precision
+
+models:
+  logistic_regression:
+    max_iter: 500
+    class_weight: balanced
+  random_forest:
+    n_estimators: 25
+    min_samples_leaf: 5
+    class_weight: balanced
+
+threshold:
+  strategy: precision_at_min_recall
+  min_recall: 0.70
+
+explanations:
+  permutation_repeats: 2
+
+# Kept apart from models/registry so a smoke run can never become the served model.
+output:
+  registry_dir: build/smoke-registry
+  reports_dir: build/smoke-reports
+
+mlflow:
+  enabled: false

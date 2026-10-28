@@ -5,8 +5,8 @@ frontend, CI, Docker, monitoring, and a controlled retraining workflow.
 
 > Learning and portfolio project. Not for making real customer decisions.
 
-**Status:** Phases 1–5 done (data profiling, schema-aware validation, training and evaluation,
-prediction API, Streamlit frontend).
+**Status:** Phases 1–6 done (data profiling, schema-aware validation, training and evaluation,
+prediction API, Streamlit frontend, tests and CI).
 The full README comes in Phase 9.
 
 ## Data
@@ -28,7 +28,7 @@ Raw columns are mapped to a canonical schema through a versioned YAML mapping. S
 
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev,tracking,frontend]"   # Linux/macOS: .venv/bin/python; tracking (MLflow) is optional
+.venv/Scripts/python -m pip install -c requirements/constraints.txt -e ".[dev,tracking,frontend]"   # Linux/macOS: .venv/bin/python; tracking (MLflow) is optional
 .venv/Scripts/python scripts/profile_data.py      # writes reports/data_profile.{json,md}
 .venv/Scripts/python scripts/prepare_data.py      # validate + write data/processed/telco_kaggle_canonical.csv
 .venv/Scripts/python scripts/train.py             # registers a candidate in models/registry/ (not served)
@@ -42,3 +42,4 @@ python -m venv .venv
 Training method and actual results: [docs/model_evaluation.md](docs/model_evaluation.md).
 API endpoints, configuration, and examples: [docs/api.md](docs/api.md).
 Frontend behaviour and error states: [docs/frontend.md](docs/frontend.md).
+Tests, coverage, and the CI pipeline: [docs/testing_ci.md](docs/testing_ci.md).
