@@ -1,6 +1,8 @@
 # Model training and evaluation
 
-Methodology and results for the first registered model. Every number here was copied from
+Methodology and results for the first registered model. The currently served version,
+`20261028T040654Z-ecd0b68e`, was retrained through the gated workflow to add a drift reference
+profile, and matches it on every metric ([monitoring.md](monitoring.md)). Every number here was copied from
 `models/registry/20261027T185356Z-9178da7c/` (`evaluation.md` and `metadata.json`), produced by
 `python scripts/train.py` with [`configs/train.yaml`](../configs/train.yaml). The model artifacts are
 not committed, so re-running training regenerates them. Three runs gave identical metrics, because the

@@ -25,14 +25,19 @@ downloading anything.
 | Frontend | `test_frontend.py` | Mapping HTTP failures to error types, payload building and casting, consistency hints, samples valid against the schema, Streamlit app end to end against a live API, the API-down state |
 | CLI scripts | `test_cli.py` | Exit codes 0/1/2, reports written, no data written on failure, train → promote flow, `--reason` required |
 
-Results on 2026-10-27, from actual runs:
+Results from actual runs:
 
-- Windows / Python 3.13.5: 97 passed. `ruff check` and `ruff format --check` are clean. Line coverage is
-  94% across `churn` and `frontend`.
-- Windows / Python 3.11.18 (temporary conda env, installed with `requirements/constraints.txt`):
-  97 passed, ruff clean.
-- Linux / Python 3.11 (`python:3.11-slim` container, same steps as the workflow): ruff clean,
-  97 passed, smoke run passed (synthetic data → train → promote → serve → `/predict`).
+- Windows / Python 3.13.5, at the end of Phase 9: 119 passed. `ruff check` and `ruff format --check` are clean. Line
+  coverage is 95% across `churn` and `frontend`.
+- Linux / Python 3.11 (`python:3.11-slim` container, same steps as the workflow), at the end of Phase 9: ruff
+  clean, full suite passed, smoke run passed (synthetic data → train → promote → serve →
+  `/predict`).
+- Windows / Python 3.11.18 (temporary conda env, installed with `requirements/constraints.txt`), in Phase 6:
+  97 passed (the suite at that time), ruff clean.
+
+`tests/test_monitoring.py` (Phase 8) covers PSI, reference profiles, drift and performance reports,
+`/metrics` and `/monitoring/drift`, the drift CLI's exit codes, and every retraining outcome:
+dry run, promote, rejection on criteria, and rejection on invalid data.
 
 The parts that aren't covered are mainly MLflow logging (optional, and skipped in tests), a few defensive
 branches, and some frontend rendering paths.

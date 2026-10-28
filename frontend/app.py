@@ -79,17 +79,17 @@ def render_input(spec: dict) -> None:
             st.selectbox(label, options, key=key, format_func=value_label, help=help_text)
 
 
-def show_api_error(err: ApiError) -> None:
+def show_api_error(err: ApiError, next_step: str = "press **Retry**") -> None:
     if err.kind == "unavailable":
         st.error(
             f"**The prediction service isn't reachable.** {err.message}\n\n"
             "Start it with `uvicorn churn.api.app:app --port 8000` (or `docker compose up`), "
-            "then press **Retry**."
+            f"then {next_step}."
         )
     elif err.kind == "not_ready":
         st.warning(
             f"**The service is running but has no model loaded.** {err.message}\n\n"
-            "Train and promote a model (see README), then press **Retry**."
+            f"Train and promote a model (see README), then {next_step}."
         )
     elif err.kind == "invalid":
         details = describe_field_errors(err.field_errors)
@@ -176,7 +176,8 @@ if submitted:
                 st.session_state["result"] = get_client(API_URL, API_TIMEOUT).predict(payload)
         except ApiError as err:
             st.session_state.pop("result", None)
-            show_api_error(err)
+            # No Retry button here: the form itself is the way to try again.
+            show_api_error(err, next_step="press **Estimate churn risk** again")
 
 if "result" in st.session_state:
     show_result(st.session_state["result"])

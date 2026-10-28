@@ -1,5 +1,6 @@
 import json
 import socket
+import sys
 import threading
 import time
 from pathlib import Path
@@ -215,3 +216,19 @@ def test_sample_button_fills_form(monkeypatch, live_api_url):
     at = next(b for b in at.button if b.label == second).click().run()
     assert at.session_state["field_contract"] == SAMPLES[second]["contract"]
     assert at.session_state["field_tenure_months"] == SAMPLES[second]["tenure_months"]
+
+
+def test_submit_error_does_not_mention_missing_retry_button(monkeypatch, live_api_url):
+    at = _app(monkeypatch, live_api_url).run()
+    # API goes away after the form has loaded. Streamlit imports the client as the
+    # top-level module `api_client`, so patch that copy rather than frontend.api_client.
+    loaded = sys.modules["api_client"]
+    monkeypatch.setattr(
+        loaded.ChurnApiClient,
+        "predict",
+        lambda self, payload: (_ for _ in ()).throw(loaded.ApiError("unavailable", "down")),
+    )
+    at = next(b for b in at.button if b.label == "Estimate churn risk").click().run()
+    message = at.error[0].value
+    assert "isn't reachable" in message and "Retry" not in message
+    assert "Estimate churn risk" in message
