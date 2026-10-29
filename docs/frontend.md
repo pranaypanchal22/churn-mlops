@@ -56,4 +56,5 @@ them into one. Checked at desktop width and at 375 px, with no horizontal scroll
 1. Start the API and UI as above. Use a desktop browser window about 1280 px wide.
 2. Capture: (a) the form with the default sample, (b) the result card after **Estimate churn
    risk**, (c) the "service isn't reachable" state after stopping the API.
-3. Save them as `docs/images/frontend_form.png`, `frontend_result.png`, and `frontend_api_down.png`.
+3. Save them as `docs/images/frontend_1_form.jpg`, `frontend_2_result.jpg`, and `frontend_3_api_down.jpg`.
+   Use a new filename when replacing an image: GitHub and browsers cache README images by URL.

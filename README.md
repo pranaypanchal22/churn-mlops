@@ -148,15 +148,15 @@ returns the same probability. Request validation is generated from the schema, a
 
 **1. Form, with a made-up sample profile preloaded**
 
-<img src="docs/images/frontend_form.jpg" alt="Churn risk estimator form with sample profile buttons and account fields" width="720">
+<img src="docs/images/frontend_1_form.jpg" alt="Churn risk estimator form with sample profile buttons and account fields" width="720">
 
 **2. Result returned by the API**: probability, risk level, threshold, model version, and the estimate disclaimer
 
-<img src="docs/images/frontend_result.jpg" alt="Result card showing 85% churn probability, High risk, and disclaimer" width="720">
+<img src="docs/images/frontend_2_result.jpg" alt="Result card showing 85% churn probability, High risk, and disclaimer" width="720">
 
 **3. API unavailable**: a clear message and how to recover
 
-<img src="docs/images/frontend_api_down.jpg" alt="Error message: the prediction service isn't reachable, with instructions to start it" width="720">
+<img src="docs/images/frontend_3_api_down.jpg" alt="Error message: the prediction service isn't reachable, with instructions to start it" width="720">
 
 The form is built from the API's input schema, and every prediction goes through `POST /predict`.
 There's no model code in the UI. It has made-up sample profiles, field-level API errors, and non-blocking
