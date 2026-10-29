@@ -367,3 +367,17 @@ def test_retrain_rejects_invalid_data_before_training(retrain_setup):
     d = _decision(s)
     assert d["outcome"] == "rejected" and "invalid_category" in d["validation_errors"]
     assert registry.list_versions(s["reg"]) == before
+
+
+def test_exploration_batches_are_scored_but_not_monitored(client):
+    before = client.get("/monitoring/drift").json()["n"]
+    r = client.post(
+        "/predict/batch",
+        json={"customers": [VALID] * 4},
+        headers={"X-Churn-Purpose": "exploration"},
+    )
+    assert r.status_code == 200 and len(r.json()["predictions"]) == 4
+    assert client.get("/monitoring/drift").json()["n"] == before
+    metrics = client.get("/metrics").text
+    assert "churn_exploration_rows_total 4.0" in metrics
+    assert "churn_predictions_total{" not in metrics

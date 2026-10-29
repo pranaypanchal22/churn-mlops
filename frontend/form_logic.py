@@ -100,6 +100,26 @@ SAMPLES = {
         "streaming_tv": "no",
         "streaming_movies": "no",
     },
+    "Mid-tenure one-year customer, no add-ons": {
+        "tenure_months": 24,
+        "monthly_charges": 85.0,
+        "total_charges": 2040.0,
+        "contract": "one_year",
+        "payment_method": "mailed_check",
+        "paperless_billing": "yes",
+        "senior_citizen": "yes",
+        "partner": "yes",
+        "dependents": "no",
+        "phone_service": "yes",
+        "multiple_lines": "yes",
+        "internet_service": "fiber_optic",
+        "online_security": "no",
+        "online_backup": "no",
+        "device_protection": "no",
+        "tech_support": "no",
+        "streaming_tv": "yes",
+        "streaming_movies": "yes",
+    },
     "Long-term two-year DSL customer": {
         "tenure_months": 60,
         "monthly_charges": 65.0,
@@ -202,3 +222,133 @@ def describe_field_errors(errors: list[dict[str, str]]) -> list[str]:
         f"{field_label(e.get('field', 'input'))}: {e.get('message', 'invalid value')}"
         for e in errors
     ]
+
+
+# --- Interactive helpers ------------------------------------------------------------------
+# These shape *requests*; every number shown to the user still comes back from the API.
+
+FIELD_HELP = {
+    "tenure_months": "How long the customer has been with the company.",
+    "contract": "Customers on longer contracts are committed for longer.",
+    "payment_method": "How the bill is paid. 'Automatic' means paid without customer action.",
+    "paperless_billing": "Bills sent electronically instead of by post.",
+    "monthly_charges": "What the customer pays each month.",
+    "total_charges": "Everything billed so far. Usually close to tenure × monthly charges.",
+    "multiple_lines": "More than one phone line on the account.",
+    "online_security": "Internet security add-on.",
+    "tech_support": "Technical support add-on.",
+}
+
+PHONE_ADDONS = ["multiple_lines"]
+
+# Fields a user can plausibly change for a customer (e.g. by offering a different plan).
+# Personal attributes such as age or household are deliberately not offered as levers.
+WHAT_IF_LEVERS = [
+    "contract",
+    "payment_method",
+    "paperless_billing",
+    "online_security",
+    "tech_support",
+]
+
+TENURE_STEP = 3
+
+
+def field_help(name: str, schema_description: str | None = None) -> str | None:
+    return FIELD_HELP.get(name) or schema_description or None
+
+
+def dependent_updates(values: dict[str, Any]) -> dict[str, Any]:
+    """Values implied by the parent services, mirroring the training data exactly.
+
+    In the data, add-ons are 'no_internet_service' if and only if internet_service is 'no'
+    (and likewise for the phone). Returning the implied values lets the form keep inputs
+    consistent instead of letting users submit combinations the model never saw.
+    """
+    updates: dict[str, Any] = {}
+    for parent, addons, none_token in (
+        ("internet_service", INTERNET_ADDONS, "no_internet_service"),
+        ("phone_service", PHONE_ADDONS, "no_phone_service"),
+    ):
+        if parent not in values:
+            continue
+        has_service = values[parent] != "no"
+        for addon in addons:
+            current = values.get(addon)
+            if not has_service and current != none_token:
+                updates[addon] = none_token
+            elif has_service and current == none_token:
+                updates[addon] = "no"
+    return updates
+
+
+def estimate_total(tenure_months: float, monthly_charges: float) -> float:
+    return round(float(tenure_months) * float(monthly_charges), 2)
+
+
+def what_if_scenarios(
+    payload: dict[str, Any], input_schema: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """One scenario per alternative value of each lever, everything else unchanged."""
+    by_name = {f["name"]: f for f in input_schema}
+    scenarios = []
+    for lever in WHAT_IF_LEVERS:
+        spec = by_name.get(lever)
+        if spec is None or lever not in payload:
+            continue
+        for value in spec.get("allowed_values") or []:
+            if value == payload[lever]:
+                continue
+            changed = {**payload, lever: value}
+            # Skip changes that would contradict the parent service (e.g. tech support
+            # for a customer without internet).
+            if dependent_updates(changed):
+                continue
+            scenarios.append(
+                {
+                    "field": lever,
+                    "value": value,
+                    "label": f"{field_label(lever)}: {value_label(value)}",
+                    "payload": changed,
+                }
+            )
+    return scenarios
+
+
+def tenure_scenarios(
+    payload: dict[str, Any], max_tenure: int, step: int = TENURE_STEP
+) -> list[dict[str, Any]]:
+    """Same customer at different tenures, with total charges kept consistent."""
+    points = sorted(set(range(0, max_tenure + 1, step)) | {int(payload["tenure_months"])})
+    monthly = payload["monthly_charges"]
+    return [
+        {
+            "tenure_months": t,
+            "payload": {**payload, "tenure_months": t, "total_charges": estimate_total(t, monthly)},
+        }
+        for t in points
+    ]
+
+
+def describe_risk(probability: float, threshold: float) -> tuple[str, str]:
+    """A plain-language headline and explanation relative to the decision threshold."""
+    gap = probability - threshold
+    if gap >= 0.15:
+        headline = "High risk: well above the line"
+    elif gap >= 0:
+        headline = "High risk: just above the line"
+    elif gap > -0.15:
+        headline = "Low risk: just below the line"
+    else:
+        headline = "Low risk: well below the line"
+    side = "at or above" if gap >= 0 else "below"
+    detail = (
+        f"The model's score is **{probability:.0%}**, which is {side} its decision line of "
+        f"**{threshold:.0%}**. "
+        + (
+            "Customers above the line are the ones a retention team would contact first."
+            if gap >= 0
+            else "A retention team using this model would not prioritise this customer."
+        )
+    )
+    return headline, detail

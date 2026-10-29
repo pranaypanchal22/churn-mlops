@@ -84,11 +84,12 @@ class ModelService:
             extra={"model_version": version, "drift_monitoring": self.monitor.enabled},
         )
 
-    def predict_proba(self, rows: list[dict[str, Any]]) -> list[float]:
+    def predict_proba(self, rows: list[dict[str, Any]], record: bool = True) -> list[float]:
         X = to_model_frame(pd.DataFrame(rows), self.features)
         proba = np.asarray(self.pipeline.predict_proba(X)[:, 1], dtype=float)
         # Only aggregate bin counts are kept; the rows themselves are discarded here.
-        self.monitor.record(X, proba)
+        if record:
+            self.monitor.record(X, proba)
         return [float(p) for p in proba]
 
     def label(self, probability: float) -> str:
@@ -109,6 +110,12 @@ class ModelService:
                 "low": "churn_probability < threshold",
             },
             "input_schema": m["input_schema"],
+            # Context for reading a single score: how common churn was in training data and
+            # how many customers the threshold flags. Both come from the training run.
+            "reference": {
+                "training_churn_rate": m["split"]["positive_rate"]["train"],
+                "validation_flagged_rate": m["metrics"]["validation"]["flagged_rate"],
+            },
             "metrics": {
                 split: {
                     k: m["metrics"][split][k]

@@ -27,8 +27,8 @@ Status as of 2026-10-27. "Verified" means it was run and the output was observed
 - Reproducible training with a validation-chosen threshold.
 - Hash-checked local registry with an audit log.
 - FastAPI service (single and batch prediction, readiness, model info, metrics, live drift).
-- Streamlit UI.
-- 119 tests.
+- Interactive Streamlit explorer (live updates, what-if and over-time charts).
+- 135 tests.
 - GitHub Actions workflow (passing on GitHub).
 - Hardened Docker Compose stack.
 - JSON logging and Prometheus metrics without payloads.

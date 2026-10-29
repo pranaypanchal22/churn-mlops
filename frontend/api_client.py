@@ -62,6 +62,27 @@ class ChurnApiClient:
     def predict(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/predict", json=payload)
 
+    def predict_batch(
+        self,
+        payloads: list[dict[str, Any]],
+        max_batch_size: int = 100,
+        exploration: bool = True,
+    ) -> list[float]:
+        """Probabilities for many payloads, split into requests the API will accept.
+
+        exploration=True marks the rows as hypothetical what-if scenarios so the API keeps
+        them out of drift monitoring.
+        """
+        headers = {"X-Churn-Purpose": "exploration"} if exploration else None
+        probabilities: list[float] = []
+        for start in range(0, len(payloads), max_batch_size):
+            chunk = payloads[start : start + max_batch_size]
+            body = self._request(
+                "POST", "/predict/batch", json={"customers": chunk}, headers=headers
+            )
+            probabilities += [p["churn_probability"] for p in body["predictions"]]
+        return probabilities
+
 
 def _json_or_empty(response: httpx.Response) -> dict[str, Any]:
     try:

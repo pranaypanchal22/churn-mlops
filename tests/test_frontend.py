@@ -11,11 +11,17 @@ import uvicorn
 from frontend.api_client import ApiError, ChurnApiClient
 from frontend.form_logic import (
     SAMPLES,
+    WHAT_IF_LEVERS,
     build_payload,
     consistency_hints,
+    dependent_updates,
     describe_field_errors,
+    describe_risk,
+    estimate_total,
     missing_fields,
     ordered_sections,
+    tenure_scenarios,
+    what_if_scenarios,
 )
 from streamlit.testing.v1 import AppTest
 
@@ -198,37 +204,155 @@ def test_app_shows_friendly_message_when_api_down(monkeypatch):
     assert [b.label for b in at.button] == ["Retry"]
 
 
-def test_app_predicts_through_api(monkeypatch, live_api_url, promoted_registry):
+def _metrics(at) -> dict[str, str]:
+    return {m.label: m.value for m in at.metric}
+
+
+def _drift_rows(url: str) -> int:
+    return httpx.get(f"{url}/monitoring/drift").json()["n"]
+
+
+def test_app_shows_estimate_immediately(monkeypatch, live_api_url, promoted_registry):
     at = _app(monkeypatch, live_api_url).run()
     assert not at.exception and not at.error
-    submit = next(b for b in at.button if b.label == "Estimate churn risk")
-    at = submit.click().run()
+    metrics = _metrics(at)
+    assert metrics["Model's score"].endswith("%")
+    assert metrics["Risk level"] in {"High", "Low"}
+    assert not [b for b in at.button if b.label == "Estimate churn risk"]
+    assert any(promoted_registry[1] in c.value for c in at.caption)
+    assert [t.label for t in at.tabs][:2] == ["🔀 What could change it?", "📈 Over time"]
+
+
+def test_changing_an_input_updates_the_estimate(monkeypatch, live_api_url):
+    at = _app(monkeypatch, live_api_url).run()
+    before = _metrics(at)["Model's score"]
+    at.radio(key="field_contract").set_value("two_year").run()
+    at.slider(key="field_tenure_months").set_value(60).run()
     assert not at.exception and not at.error
-    labels = {m.label: m.value for m in at.metric}
-    assert labels["Risk level"] in {"High", "Low"}
-    assert labels["Churn probability"].endswith("%")
-    assert at.session_state["result"]["model_version"] == promoted_registry[1]
+    assert _metrics(at)["Model's score"] != before
 
 
-def test_sample_button_fills_form(monkeypatch, live_api_url):
+def test_sample_selector_fills_profile(monkeypatch, live_api_url):
     at = _app(monkeypatch, live_api_url).run()
-    second = list(SAMPLES)[1]
-    at = next(b for b in at.button if b.label == second).click().run()
-    assert at.session_state["field_contract"] == SAMPLES[second]["contract"]
-    assert at.session_state["field_tenure_months"] == SAMPLES[second]["tenure_months"]
+    last = list(SAMPLES)[-1]
+    at.selectbox(key="sample_choice").set_value(last).run()
+    assert at.session_state["field_contract"] == SAMPLES[last]["contract"]
+    assert at.session_state["field_tenure_months"] == SAMPLES[last]["tenure_months"]
 
 
-def test_submit_error_does_not_mention_missing_retry_button(monkeypatch, live_api_url):
+def test_no_internet_sets_and_locks_addons(monkeypatch, live_api_url):
     at = _app(monkeypatch, live_api_url).run()
-    # API goes away after the form has loaded. Streamlit imports the client as the
-    # top-level module `api_client`, so patch that copy rather than frontend.api_client.
+    at.radio(key="field_internet_service").set_value("no").run()
+    assert at.session_state["field_online_security"] == "no_internet_service"
+    assert at.radio(key="field_online_security").disabled
+    at.radio(key="field_internet_service").set_value("dsl").run()
+    assert at.session_state["field_online_security"] == "no"
+    assert not at.radio(key="field_online_security").disabled
+    assert not at.error
+
+
+def test_total_charges_can_be_calculated(monkeypatch, live_api_url):
+    at = _app(monkeypatch, live_api_url).run()
+    at.toggle(key="auto_total").set_value(True).run()
+    at.slider(key="field_tenure_months").set_value(10).run()
+    monthly = at.session_state["field_monthly_charges"]
+    assert at.session_state["field_total_charges"] == pytest.approx(10 * monthly)
+
+
+def test_what_if_rows_do_not_count_as_real_traffic(monkeypatch, live_api_url):
+    before = _drift_rows(live_api_url)
+    at = _app(monkeypatch, live_api_url).run()
+    assert not at.error
+    # One real prediction per run; the ~30 scenario rows are marked as exploration.
+    assert _drift_rows(live_api_url) - before == 1
+
+
+def test_prediction_failure_offers_retry(monkeypatch, live_api_url):
+    at = _app(monkeypatch, live_api_url).run()
+    # Streamlit imports the client as the top-level module `api_client`, so patch that
+    # copy rather than frontend.api_client.
     loaded = sys.modules["api_client"]
     monkeypatch.setattr(
         loaded.ChurnApiClient,
         "predict",
         lambda self, payload: (_ for _ in ()).throw(loaded.ApiError("unavailable", "down")),
     )
-    at = next(b for b in at.button if b.label == "Estimate churn risk").click().run()
+    at.slider(key="field_tenure_months").set_value(30).run()
     message = at.error[0].value
-    assert "isn't reachable" in message and "Retry" not in message
-    assert "Estimate churn risk" in message
+    assert "isn't reachable" in message and "Retry" in message
+    assert [b.label for b in at.button] == ["Retry"]
+
+
+# --- Interactive helpers -----------------------------------------------------------------
+
+
+def test_dependent_updates_mirror_training_data():
+    base = dict(SAMPLES[next(iter(SAMPLES))])
+    no_net = dependent_updates({**base, "internet_service": "no"})
+    assert set(no_net.values()) == {"no_internet_service"} and len(no_net) == 6
+    back = {**base, "internet_service": "dsl", "online_security": "no_internet_service"}
+    assert dependent_updates(back) == {"online_security": "no"}
+    assert dependent_updates({**base, "phone_service": "no"}) == {
+        "multiple_lines": "no_phone_service"
+    }
+    assert dependent_updates(base) == {}
+
+
+def test_estimate_total():
+    assert estimate_total(12, 70.7) == 848.4
+    assert estimate_total(0, 99) == 0.0
+
+
+def test_what_if_changes_exactly_one_lever(input_schema):
+    payload = SAMPLES[next(iter(SAMPLES))]
+    scenarios = what_if_scenarios(payload, input_schema)
+    assert scenarios
+    for s in scenarios:
+        diff = {k for k in payload if s["payload"][k] != payload[k]}
+        assert diff == {s["field"]} and s["field"] in WHAT_IF_LEVERS
+        assert s["value"] != payload[s["field"]]
+
+
+def test_what_if_skips_contradictions(input_schema):
+    no_net = {**SAMPLES[next(iter(SAMPLES))], "internet_service": "no"}
+    no_net.update(dependent_updates(no_net))
+    fields = {s["field"] for s in what_if_scenarios(no_net, input_schema)}
+    assert "online_security" not in fields and "tech_support" not in fields
+    assert "contract" in fields
+
+
+def test_tenure_scenarios_keep_totals_consistent():
+    payload = {**SAMPLES[next(iter(SAMPLES))], "tenure_months": 5}
+    points = tenure_scenarios(payload, max_tenure=72)
+    tenures = [p["tenure_months"] for p in points]
+    assert 5 in tenures and min(tenures) == 0 and max(tenures) <= 72
+    for pt in points:
+        assert pt["payload"]["total_charges"] == estimate_total(
+            pt["tenure_months"], payload["monthly_charges"]
+        )
+
+
+@pytest.mark.parametrize(
+    ("p", "headline"),
+    [(0.9, "well above"), (0.62, "just above"), (0.55, "just below"), (0.2, "well below")],
+)
+def test_describe_risk_bands(p, headline):
+    title, detail = describe_risk(p, 0.6)
+    assert headline in title and f"{p:.0%}" in detail
+
+
+def test_predict_batch_chunks_and_marks_exploration():
+    seen = []
+
+    def handler(request: httpx.Request):
+        body = json.loads(request.content)
+        seen.append((len(body["customers"]), request.headers.get("x-churn-purpose")))
+        preds = [
+            {"index": i, "churn_probability": 0.5, "risk_label": "low"}
+            for i in range(len(body["customers"]))
+        ]
+        return httpx.Response(200, json={"predictions": preds})
+
+    out = _client(handler).predict_batch([{}] * 7, max_batch_size=3)
+    assert len(out) == 7
+    assert seen == [(3, "exploration"), (3, "exploration"), (1, "exploration")]

@@ -146,21 +146,30 @@ returns the same probability. Request validation is generated from the schema, a
 
 ## Frontend
 
-**1. Form, with a made-up sample profile preloaded**
+An interactive **churn risk explorer**. Edit the profile in the sidebar and everything updates
+instantly. There's no submit button.
 
-<img src="docs/images/frontend_1_form.jpg" alt="Churn risk estimator form with sample profile buttons and account fields" width="720">
+**1. Score at a glance**: the model's score on a gauge with its decision line, a plain-language verdict, and how many customers that line flags
 
-**2. Result returned by the API**: probability, risk level, threshold, model version, and the estimate disclaimer
+<img src="docs/images/explorer_1_overview.jpg" alt="Churn risk explorer showing an 85% score on a gauge, High risk, and the 60% decision line" width="760">
 
-<img src="docs/images/frontend_2_result.jpg" alt="Result card showing 85% churn probability, High risk, and disclaimer" width="720">
+**2. What could change it?** Each bar changes one thing (contract, payment method, add-ons) and asks the model again
 
-**3. API unavailable**: a clear message and how to recover
+<img src="docs/images/explorer_2_what_if.jpg" alt="What-if bar chart: switching to a two-year contract lowers the score from 85% to 54%" width="760">
 
-<img src="docs/images/frontend_3_api_down.jpg" alt="Error message: the prediction service isn't reachable, with instructions to start it" width="720">
+**3. Over time**: the same customer at different tenures, and where the score crosses the line
 
-The form is built from the API's input schema, and every prediction goes through `POST /predict`.
-There's no model code in the UI. It has made-up sample profiles, field-level API errors, and non-blocking
-consistency hints. Checked at desktop width and at 375 px. [docs/frontend.md](docs/frontend.md)
+<img src="docs/images/explorer_3_over_time.jpg" alt="Line chart of the score falling with tenure, crossing the decision line at about 45 months" width="760">
+
+Other tabs explain the model's test results, what it relies on, and how the app works.
+
+- **Every number comes from the API.** The UI has no model code. The form is built from `/model-info`.
+- **What-if rows are labelled as exploration** (an `X-Churn-Purpose` header), so they never count as real traffic in drift monitoring.
+- **Inputs stay consistent:** choosing "no internet" fills in and locks the internet add-ons, and total charges can be calculated from tenure × monthly charges.
+- **Honest wording:** the what-if view says it shows how the *model reacts*, not what would *cause* a customer to stay.
+- **Phones:** checked at desktop width and at 375 px. On phones the profile panel starts collapsed so the result shows first.
+
+[docs/frontend.md](docs/frontend.md)
 
 ## CI/CD and Docker
 
@@ -169,7 +178,7 @@ consistency hints. Checked at desktop width and at 375 px. [docs/frontend.md](do
   - `pytest` with coverage on Python 3.11 and 3.13;
   - a synthetic-data smoke run: validate → train → promote → serve → `/predict`;
   - a Docker job that builds both images and checks the running stack.
-- **Tests:** 119, all on synthetic or hand-built data. 95% line coverage across `churn` and `frontend`
+- **Tests:** 135, all on synthetic or hand-built data. 95% line coverage across `churn` and `frontend`
   (Windows, Python 3.13). The same suite passes on Linux with Python 3.11.
 - **Docker:**
   - multi-stage `python:3.11-slim` images that run as non-root (uid 10001), with health checks;

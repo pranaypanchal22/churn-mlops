@@ -13,9 +13,9 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -185,11 +185,26 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         response_model=BatchPrediction,
         responses={422: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
     )
-    def predict_batch(batch: BatchRequest):  # type: ignore[valid-type]
+    def predict_batch(
+        batch: BatchRequest,  # type: ignore[valid-type]
+        x_churn_purpose: Annotated[str | None, Header()] = None,
+    ):
+        """Score up to the batch limit.
+
+        Send `X-Churn-Purpose: exploration` for hypothetical what-if rows (as the UI does).
+        Those are scored normally but kept out of drift monitoring and prediction metrics,
+        which should only describe real customers.
+        """
         if not service.ready:
             return _not_ready(service)
-        probs = service.predict_proba([c.model_dump() for c in batch.customers])
-        _observe(probs)
+        exploration = (x_churn_purpose or "").lower() == "exploration"
+        probs = service.predict_proba(
+            [c.model_dump() for c in batch.customers], record=not exploration
+        )
+        if exploration:
+            metrics.exploration_rows.inc(len(probs))
+        else:
+            _observe(probs)
         return BatchPrediction(
             predictions=[
                 BatchPredictionItem(

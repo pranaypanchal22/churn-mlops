@@ -1,8 +1,9 @@
-# Frontend (Streamlit)
+# Frontend: churn risk explorer (Streamlit)
 
-A beginner-friendly form that sends one customer profile to the API and shows the estimate it
-returns. **The frontend contains no model and no copy of the model logic.** It builds its form from
-the API's `/model-info` input schema, and every prediction comes from `POST /predict`.
+An interactive page for exploring what the model says about one customer, and *why*. **The frontend
+contains no model and no copy of the model logic.** It builds its inputs from the API's
+`/model-info` input schema, and every number it shows comes from `POST /predict` or
+`POST /predict/batch`.
 
 ```bash
 # terminal 1: API
@@ -16,45 +17,72 @@ the API's `/model-info` input schema, and every prediction comes from `POST /pre
 | `CHURN_API_URL` | `http://localhost:8000` | API base URL |
 | `CHURN_API_TIMEOUT` | `5` | Seconds before a request counts as failed |
 
-The frontend's own dependencies are listed in [`frontend/requirements.txt`](../frontend/requirements.txt)
-(Streamlit and httpx only). Its Docker image does not need scikit-learn or pandas.
+Dependencies are in [`frontend/requirements.txt`](../frontend/requirements.txt): Streamlit and
+httpx. Charts use Altair, which ships with Streamlit. The image doesn't need scikit-learn.
 
-## User flow
+## Layout
 
-1. On load, the app fetches `/model-info`, which is cached for 60 s. The form opens with a made-up sample
-   profile already filled in, so the demo works straight away. Two sample buttons switch between profiles.
-2. Inputs are grouped as Account, Household, Phone, and Internet. Numbers use number inputs
-   bounded by the schema's min/max. Options with three or fewer choices use radio buttons. Payment
-   method uses a dropdown. Every option comes from the schema served by the API.
-3. **Estimate churn risk** sends the form to `POST /predict` while a spinner shows.
-4. The result card shows the probability, the High/Low risk level, the threshold, the model version, and
-   the API's "estimate, not a guarantee" note.
+- **Sidebar: Customer profile.** A sample picker with three made-up customers, then Account, Household, Phone, and
+  Internet sections.
+  - Tenure is a slider. Charges are number inputs. Options with three or fewer choices use radio buttons, and payment method uses
+    a dropdown. Every option and limit comes from the API's schema.
+  - Short help text explains each field.
+- **Main area: live result.** Updates on every change, with no submit button:
+  - **Model's score**, **Risk level**, and **Customers this line flags** (the validation-set share at or
+    above the threshold, from `/model-info → reference`);
+  - a **gauge** with the score and the dashed decision line;
+  - a **plain-language verdict**: "well above / just above / just below / well below the line";
+  - the API's "estimate, not a guarantee" note and the model version.
+- **Tabs:**
+  - **🔀 What could change it?** One bar per single change to a *changeable* lever: contract,
+    payment method, paperless billing, online security, tech support. Bars are coloured by which side of the line
+    they land on, sorted with the biggest drop first, and the largest drop is spelled out. Personal
+    attributes such as age or household are deliberately *not* offered as levers.
+  - **📈 Over time.** The same customer and plan at tenures 0–72 months (the range in the training data), with total
+    charges recalculated. It says where the score crosses the line.
+  - **🧠 About the model.** Test-set recall and precision, the training churn rate, the threshold rule, the
+    top model-level signals (labelled as not causal), and known limits.
+  - **❓ How it works.** A five-step explanation for non-technical viewers.
 
-## Validation and errors
+## Keeping inputs realistic
+
+- **Choosing "No" for internet (or phone)** sets the matching add-ons to "No internet service" (or "No phone
+  service") and locks them. Choosing a service again resets them to "No". This mirrors the training
+  data, where those values always go together.
+- **"Work it out from tenure × monthly charges"** fills total charges automatically.
+- The remaining consistency check (total lower than one month's charges) appears as a non-blocking hint.
+
+## What-if requests and monitoring
+
+The what-if and over-time charts score about 35 hypothetical variants of the customer on each change.
+They're sent in one `/predict/batch` call with the header `X-Churn-Purpose: exploration`. The API
+scores them normally but **keeps them out of drift monitoring and the prediction metrics**, and counts them
+separately (`churn_exploration_rows_total`). Without this, every slider move would look like a sudden shift in real
+customers. A test checks that one page load adds exactly one row to drift monitoring.
+
+## Errors
 
 | Situation | What the user sees |
 |---|---|
-| Field left empty | "Please fill in: …" and no request is sent |
-| Combination never seen in the data (e.g. internet service "No" with an add-on "Yes", or total < monthly) | A non-blocking hint. The request is still sent, because the API decides validity. |
-| API rejects input (422) | Each rejected field, with its friendly label and the API's message |
+| Field missing | "Please fill in: …" and no request is sent |
+| API rejects input (422) | Each rejected field with its friendly label and the API's message |
 | API down or timed out | "The prediction service isn't reachable", how to start it, and a **Retry** button |
 | API up but no model promoted (503) | "No model loaded", pointing to train/promote, with Retry |
-| Other server error | A generic retry message |
+| Scenario scoring fails | The main result still shows. The tab shows a warning. |
 
 ## Privacy
 
 There are no fields for names, IDs, or contact details. Payloads contain only the 18 schema features. The app
-logs nothing about inputs or results, and the API rejects unknown fields.
+logs and stores nothing about inputs or results, and the API rejects unknown fields.
 
-## Layout
+## Screen sizes
 
-The page is centered. On desktop each section shows two columns, and on narrow screens Streamlit stacks
-them into one. Checked at desktop width and at 375 px, with no horizontal scrolling.
+Wide layout with the sidebar open on desktop. On phones (checked at 375 px) the sidebar starts
+collapsed so the result shows first, and the intro tells phone users how to open it. No horizontal
+scrolling.
 
 ## Screenshots (for the README)
 
-1. Start the API and UI as above. Use a desktop browser window about 1280 px wide.
-2. Capture: (a) the form with the default sample, (b) the result card after **Estimate churn
-   risk**, (c) the "service isn't reachable" state after stopping the API.
-3. Save them as `docs/images/frontend_1_form.jpg`, `frontend_2_result.jpg`, and `frontend_3_api_down.jpg`.
-   Use a new filename when replacing an image: GitHub and browsers cache README images by URL.
+Captured from the Docker stack in a 1200×750 viewport: `docs/images/explorer_1_overview.jpg`,
+`explorer_2_what_if.jpg`, `explorer_3_over_time.jpg`. **Use a new filename when replacing an image**,
+because GitHub and browsers cache README images by URL.

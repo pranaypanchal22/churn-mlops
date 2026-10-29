@@ -162,6 +162,8 @@ def test_model_info(client, promoted_registry):
     assert "not causal" in info["model_signals"]["caveat"]
     assert info["max_batch_size"] == 3
     assert info["threshold"]["selected_on"] == "validation"
+    ref = info["reference"]
+    assert 0 < ref["training_churn_rate"] < 1 and 0 <= ref["validation_flagged_rate"] <= 1
 
 
 def test_logs_do_not_contain_payload(client):

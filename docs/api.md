@@ -27,7 +27,7 @@ FastAPI service that serves the **promoted** model from the local registry. Inte
 | GET | `/monitoring/drift` | Aggregate input/score drift since start; 404 if the model has no reference profile |
 | GET | `/model-info` | Version, model type, schema/mapping versions, threshold, input schema, metrics, model-level signals |
 | POST | `/predict` | One customer |
-| POST | `/predict/batch` | `{"customers": [...]}`, 1 to `CHURN_MAX_BATCH_SIZE` items |
+| POST | `/predict/batch` | `{"customers": [...]}`, 1 to `CHURN_MAX_BATCH_SIZE` items. With header `X-Churn-Purpose: exploration`, rows are scored but kept out of drift monitoring and prediction metrics (used by the UI's what-if charts). |
 
 The service becomes **not ready** (503 on `/ready`, `/predict*`, and `/model-info`) when:
 - no version has been promoted,

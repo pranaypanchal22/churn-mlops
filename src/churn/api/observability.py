@@ -83,6 +83,11 @@ class ApiMetrics:
             buckets=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0),
             registry=self.registry,
         )
+        self.exploration_rows = Counter(
+            "churn_exploration_rows_total",
+            "What-if rows scored for the UI (excluded from drift and prediction metrics)",
+            registry=self.registry,
+        )
         self.model_ready = Gauge(
             "churn_model_ready", "1 if a model is loaded", registry=self.registry
         )
