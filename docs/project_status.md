@@ -12,7 +12,7 @@ Status as of 2026-10-27. "Verified" means it was run and the output was observed
 | 4 | Identifiers and target-derived columns can't leak into training | **Verified** | Forbidden-pattern check at config load, `assert_no_leakage` before fitting, output columns limited to canonical names. Tests in `test_schema_config.py`, `test_pipeline.py`, `test_training.py`. |
 | 5 | The API returns validated, versioned predictions | **Verified** | Schema-generated request validation, `model_version` + threshold + note in every response. Not-ready on missing, tampered, or schema-mismatched models. 22 API tests. |
 | 6 | The frontend sends requests to the API and shows responses and errors clearly | **Verified** | Checked in the browser at desktop width and 375 px, plus API-down and result states (screenshots in `docs/images/`). 18 frontend tests, including Streamlit's test runner against a live API. |
-| 7 | CI runs automated checks without private credentials | **Partly verified** | Workflow written with read-only token, no secrets. Every job's steps were run locally (lint, tests on 3.11/3.13, smoke, Docker build and stack). **The workflow hasn't run on GitHub yet**, because the repository has no remote. |
+| 7 | CI runs automated checks without private credentials | **Verified** | First GitHub Actions run on 2026-10-29 ([run 40808515907](https://github.com/pranaypanchal22/churn-mlops/actions/runs/40808515907)) passed all 5 jobs in about 2 minutes: lint, test (3.11), test (3.13), smoke, docker. Read-only token, no secrets. |
 | 8 | Docker Compose starts the API and frontend locally | **Verified** | Both healthy. Non-root uid 10001. Read-only filesystem confirmed by failed writes. |
 | 9 | Monitoring and retraining are documented and use safe promotion rules | **Verified** | `docs/monitoring.md`. Real-data drift runs (`ok` / `alert`). Retraining dry run → `eligible_not_promoted` with serving unchanged. Tests for promote, reject-on-criteria, and reject-on-invalid-data paths. |
 | 10 | Reported dataset facts and metrics come from actual outputs | **Verified** | Every number in the docs was copied from script output or `metadata.json`. Subgroup counts were re-checked before publishing. |
@@ -29,7 +29,7 @@ Status as of 2026-10-27. "Verified" means it was run and the output was observed
 - FastAPI service (single and batch prediction, readiness, model info, metrics, live drift).
 - Streamlit UI.
 - 119 tests.
-- GitHub Actions workflow (run locally, not yet on GitHub).
+- GitHub Actions workflow (passing on GitHub).
 - Hardened Docker Compose stack.
 - JSON logging and Prometheus metrics without payloads.
 - PSI drift reports kept separate from labelled performance.

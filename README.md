@@ -1,5 +1,7 @@
 # Customer Churn Prediction: an end-to-end MLOps project
 
+[![CI](https://github.com/pranaypanchal22/churn-mlops/actions/workflows/ci.yml/badge.svg)](https://github.com/pranaypanchal22/churn-mlops/actions/workflows/ci.yml)
+
 A local-first system that validates telecom customer data against a versioned schema, trains and
 evaluates a churn classifier, serves it through a FastAPI service and a Streamlit UI, and monitors
 and retrains it under explicit, audited promotion rules.

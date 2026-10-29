@@ -27,6 +27,10 @@ downloading anything.
 
 Results from actual runs:
 
+- GitHub Actions, first run on 2026-10-29 (commit `0f04e6e`): all 5 jobs passed (lint, test 3.11,
+  test 3.13, smoke, docker).
+  [Run log](https://github.com/pranaypanchal22/churn-mlops/actions/runs/40808515907).
+
 - Windows / Python 3.13.5, at the end of Phase 9: 119 passed. `ruff check` and `ruff format --check` are clean. Line
   coverage is 95% across `churn` and `frontend`.
 - Linux / Python 3.11 (`python:3.11-slim` container, same steps as the workflow), at the end of Phase 9: ruff
