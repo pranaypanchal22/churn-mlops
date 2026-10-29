@@ -212,62 +212,87 @@ def _drift_rows(url: str) -> int:
     return httpx.get(f"{url}/monitoring/drift").json()["n"]
 
 
-def test_app_shows_estimate_immediately(monkeypatch, live_api_url, promoted_registry):
+def _submit(at):
+    return at.button(key="submit").click().run()
+
+
+def test_nothing_is_predicted_until_submit(monkeypatch, live_api_url):
+    before = _drift_rows(live_api_url)
     at = _app(monkeypatch, live_api_url).run()
+    assert not at.exception and not at.error
+    assert "Model's score" not in _metrics(at)
+    assert any("appear here" in m.value for m in at.markdown)
+    assert at.button(key="submit").label == "Get prediction"
+    assert _drift_rows(live_api_url) == before
+
+
+def test_submit_shows_prediction(monkeypatch, live_api_url, promoted_registry):
+    at = _submit(_app(monkeypatch, live_api_url).run())
     assert not at.exception and not at.error
     metrics = _metrics(at)
     assert metrics["Model's score"].endswith("%")
     assert metrics["Risk level"] in {"High", "Low"}
-    assert not [b for b in at.button if b.label == "Estimate churn risk"]
     assert any(promoted_registry[1] in c.value for c in at.caption)
     assert [t.label for t in at.tabs][:2] == ["🔀 What could change it?", "📈 Over time"]
 
 
-def test_changing_an_input_updates_the_estimate(monkeypatch, live_api_url):
-    at = _app(monkeypatch, live_api_url).run()
-    before = _metrics(at)["Model's score"]
-    at.radio(key="field_contract").set_value("two_year").run()
-    at.slider(key="field_tenure_months").set_value(60).run()
-    assert not at.exception and not at.error
-    assert _metrics(at)["Model's score"] != before
+def test_edits_apply_only_after_submit(monkeypatch, live_api_url):
+    at = _submit(_app(monkeypatch, live_api_url).run())
+    first = _metrics(at)["Model's score"]
+    # Edits without pressing the button are not applied (form semantics).
+    at.radio(key="field_contract").set_value("two_year")
+    at.run()
+    assert _metrics(at)["Model's score"] == first
+    assert at.session_state["submitted"]["payload"]["contract"] == "month_to_month"
+    # Edits followed by the button are.
+    at.radio(key="field_contract").set_value("two_year")
+    at.slider(key="field_tenure_months").set_value(60)
+    at = _submit(at)
+    assert not at.error
+    assert at.session_state["submitted"]["payload"]["contract"] == "two_year"
+    assert _metrics(at)["Model's score"] != first
 
 
-def test_sample_selector_fills_profile(monkeypatch, live_api_url):
-    at = _app(monkeypatch, live_api_url).run()
+def test_sample_selector_fills_form_and_clears_old_result(monkeypatch, live_api_url):
+    at = _submit(_app(monkeypatch, live_api_url).run())
+    assert "Model's score" in _metrics(at)
     last = list(SAMPLES)[-1]
     at.selectbox(key="sample_choice").set_value(last).run()
     assert at.session_state["field_contract"] == SAMPLES[last]["contract"]
     assert at.session_state["field_tenure_months"] == SAMPLES[last]["tenure_months"]
+    assert "Model's score" not in _metrics(at)
 
 
-def test_no_internet_sets_and_locks_addons(monkeypatch, live_api_url):
+def test_no_internet_is_made_consistent_on_submit(monkeypatch, live_api_url):
     at = _app(monkeypatch, live_api_url).run()
-    at.radio(key="field_internet_service").set_value("no").run()
+    at.radio(key="field_internet_service").set_value("no")
+    at = _submit(at)
     assert at.session_state["field_online_security"] == "no_internet_service"
     assert at.radio(key="field_online_security").disabled
-    at.radio(key="field_internet_service").set_value("dsl").run()
-    assert at.session_state["field_online_security"] == "no"
-    assert not at.radio(key="field_online_security").disabled
+    assert any("No internet service" in i.value for i in at.info)
     assert not at.error
 
 
 def test_total_charges_can_be_calculated(monkeypatch, live_api_url):
     at = _app(monkeypatch, live_api_url).run()
-    at.toggle(key="auto_total").set_value(True).run()
-    at.slider(key="field_tenure_months").set_value(10).run()
+    at.toggle(key="auto_total").set_value(True)
+    at.slider(key="field_tenure_months").set_value(10)
+    at = _submit(at)
     monthly = at.session_state["field_monthly_charges"]
     assert at.session_state["field_total_charges"] == pytest.approx(10 * monthly)
+    assert any("tenure × monthly" in i.value for i in at.info)
 
 
-def test_what_if_rows_do_not_count_as_real_traffic(monkeypatch, live_api_url):
+def test_one_submit_is_one_real_prediction(monkeypatch, live_api_url):
     before = _drift_rows(live_api_url)
-    at = _app(monkeypatch, live_api_url).run()
+    at = _submit(_app(monkeypatch, live_api_url).run())
     assert not at.error
-    # One real prediction per run; the ~30 scenario rows are marked as exploration.
+    at.run()  # redraws reuse the stored result instead of calling the API again
+    # The ~30 what-if rows are sent as exploration and never reach drift monitoring.
     assert _drift_rows(live_api_url) - before == 1
 
 
-def test_prediction_failure_offers_retry(monkeypatch, live_api_url):
+def test_prediction_failure_says_how_to_retry(monkeypatch, live_api_url):
     at = _app(monkeypatch, live_api_url).run()
     # Streamlit imports the client as the top-level module `api_client`, so patch that
     # copy rather than frontend.api_client.
@@ -277,10 +302,10 @@ def test_prediction_failure_offers_retry(monkeypatch, live_api_url):
         "predict",
         lambda self, payload: (_ for _ in ()).throw(loaded.ApiError("unavailable", "down")),
     )
-    at.slider(key="field_tenure_months").set_value(30).run()
+    at = _submit(at)
     message = at.error[0].value
-    assert "isn't reachable" in message and "Retry" in message
-    assert [b.label for b in at.button] == ["Retry"]
+    assert "isn't reachable" in message and "Get prediction" in message
+    assert "Retry" not in message
 
 
 # --- Interactive helpers -----------------------------------------------------------------

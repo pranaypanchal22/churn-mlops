@@ -146,28 +146,27 @@ returns the same probability. Request validation is generated from the schema, a
 
 ## Frontend
 
-An interactive **churn risk explorer**. Edit the profile in the sidebar and everything updates
-instantly. There's no submit button.
+A **churn risk explorer** in two steps. **1. Enter the customer's details** in the form, or start from a
+made-up sample. **2. Press Get prediction** and the results appear beside the form.
 
-**1. Score at a glance**: the model's score on a gauge with its decision line, a plain-language verdict, and how many customers that line flags
+**Before submitting**: the form on the left, and a panel explaining what you'll get
 
-<img src="docs/images/explorer_1_overview.jpg" alt="Churn risk explorer showing an 85% score on a gauge, High risk, and the 60% decision line" width="760">
+<img src="docs/images/explorer_v3_1_form.jpg" alt="Customer details form on the left and an empty prediction panel on the right" width="760">
 
-**2. What could change it?** Each bar changes one thing (contract, payment method, add-ons) and asks the model again
+**After Get prediction**: the model's score on a gauge with its decision line, a plain-language verdict, and how many customers that line flags
 
-<img src="docs/images/explorer_2_what_if.jpg" alt="What-if bar chart: switching to a two-year contract lowers the score from 85% to 54%" width="760">
+<img src="docs/images/explorer_v3_2_result.jpg" alt="Prediction panel showing an 85% score, High risk, and the 60% decision line" width="760">
 
-**3. Over time**: the same customer at different tenures, and where the score crosses the line
+**What could change it?** Each bar changes one thing (contract, payment method, add-ons) and asks the model again. Other tabs show the score **over time**, the model's test results, and how the app works.
 
-<img src="docs/images/explorer_3_over_time.jpg" alt="Line chart of the score falling with tenure, crossing the decision line at about 45 months" width="760">
+<img src="docs/images/explorer_v3_3_what_if.jpg" alt="Get prediction button beside a what-if chart: a two-year contract lowers the score from 85% to 54%" width="760">
 
-Other tabs explain the model's test results, what it relies on, and how the app works.
-
+- **Nothing is predicted until you submit.** Edits don't apply until you press **Get prediction** again, so the results always match the details you sent.
 - **Every number comes from the API.** The UI has no model code. The form is built from `/model-info`.
-- **What-if rows are labelled as exploration** (an `X-Churn-Purpose` header), so they never count as real traffic in drift monitoring.
-- **Inputs stay consistent:** choosing "no internet" fills in and locks the internet add-ons, and total charges can be calculated from tenure × monthly charges.
+- **What-if rows are labelled as exploration** (an `X-Churn-Purpose` header), so they never count as real traffic in drift monitoring. One submit counts as one real prediction.
+- **Inputs are tidied on submit:** "no internet" sets and locks the internet add-ons, and total charges can be calculated from tenure × monthly charges. The result says what was adjusted.
 - **Honest wording:** the what-if view says it shows how the *model reacts*, not what would *cause* a customer to stay.
-- **Phones:** checked at desktop width and at 375 px. On phones the profile panel starts collapsed so the result shows first.
+- **Phones:** checked at desktop width and at 375 px. The form comes first and the prediction stacks below it.
 
 [docs/frontend.md](docs/frontend.md)
 
@@ -178,7 +177,7 @@ Other tabs explain the model's test results, what it relies on, and how the app 
   - `pytest` with coverage on Python 3.11 and 3.13;
   - a synthetic-data smoke run: validate → train → promote → serve → `/predict`;
   - a Docker job that builds both images and checks the running stack.
-- **Tests:** 135, all on synthetic or hand-built data. 95% line coverage across `churn` and `frontend`
+- **Tests:** 136, all on synthetic or hand-built data. 95% line coverage across `churn` and `frontend`
   (Windows, Python 3.13). The same suite passes on Linux with Python 3.11.
 - **Docker:**
   - multi-stage `python:3.11-slim` images that run as non-root (uid 10001), with health checks;

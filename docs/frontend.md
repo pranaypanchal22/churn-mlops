@@ -1,6 +1,7 @@
 # Frontend: churn risk explorer (Streamlit)
 
-An interactive page for exploring what the model says about one customer, and *why*. **The frontend
+A two-step page: enter a customer's details, press **Get prediction**, and see what the model says
+about them, and *why*. **The frontend
 contains no model and no copy of the model logic.** It builds its inputs from the API's
 `/model-info` input schema, and every number it shows comes from `POST /predict` or
 `POST /predict/batch`.
@@ -20,19 +21,28 @@ contains no model and no copy of the model logic.** It builds its inputs from th
 Dependencies are in [`frontend/requirements.txt`](../frontend/requirements.txt): Streamlit and
 httpx. Charts use Altair, which ships with Streamlit. The image doesn't need scikit-learn.
 
-## Layout
+## Layout and flow
 
-- **Sidebar: Customer profile.** A sample picker with three made-up customers, then Account, Household, Phone, and
-  Internet sections.
-  - Tenure is a slider. Charges are number inputs. Options with three or fewer choices use radio buttons, and payment method uses
-    a dropdown. Every option and limit comes from the API's schema.
-  - Short help text explains each field.
-- **Main area: live result.** Updates on every change, with no submit button:
+Two columns on desktop: **1 · Customer details** on the left, **2 · Prediction** on the right.
+
+- **Customer details.**
+  - A sample picker with three made-up customers. Picking one fills the form and clears any old result.
+  - A form with Account (open), Household, Phone, and Internet sections. Closed sections already
+    hold values.
+  - Tenure is a slider and charges are number inputs. Options with three or fewer choices use radio buttons,
+    and payment method uses a dropdown. Every option and limit comes from the API's schema, and short help text explains each field.
+  - A full-width **🔮 Get prediction** button at the bottom.
+- **Nothing is predicted until you submit.** It's a Streamlit form, so edits don't apply until the button
+  is pressed. The results therefore always match the details that were sent, and a caption says so.
+- **Prediction** (after submit):
   - **Model's score**, **Risk level**, and **Customers this line flags** (the validation-set share at or
     above the threshold, from `/model-info → reference`);
   - a **gauge** with the score and the dashed decision line;
   - a **plain-language verdict**: "well above / just above / just below / well below the line";
+  - notes on anything the form adjusted on submit;
   - the API's "estimate, not a guarantee" note and the model version.
+
+  Before the first submit, this panel explains what you'll get.
 - **Tabs:**
   - **🔀 What could change it?** One bar per single change to a *changeable* lever: contract,
     payment method, paperless billing, online security, tech support. Bars are coloured by which side of the line
@@ -44,21 +54,23 @@ httpx. Charts use Altair, which ships with Streamlit. The image doesn't need sci
     top model-level signals (labelled as not causal), and known limits.
   - **❓ How it works.** A five-step explanation for non-technical viewers.
 
-## Keeping inputs realistic
+## Keeping inputs realistic (applied on submit)
 
-- **Choosing "No" for internet (or phone)** sets the matching add-ons to "No internet service" (or "No phone
+- **"No" for internet (or phone)** sets the matching add-ons to "No internet service" (or "No phone
   service") and locks them. Choosing a service again resets them to "No". This mirrors the training
-  data, where those values always go together.
-- **"Work it out from tenure × monthly charges"** fills total charges automatically.
+  data, where those values always go together. The result says what was changed.
+- **"Work it out from tenure × monthly charges"** calculates total charges when you submit, and the result shows
+  the value used.
 - The remaining consistency check (total lower than one month's charges) appears as a non-blocking hint.
 
 ## What-if requests and monitoring
 
-The what-if and over-time charts score about 35 hypothetical variants of the customer on each change.
+The what-if and over-time charts score about 35 hypothetical variants of the customer on each submit.
 They're sent in one `/predict/batch` call with the header `X-Churn-Purpose: exploration`. The API
 scores them normally but **keeps them out of drift monitoring and the prediction metrics**, and counts them
-separately (`churn_exploration_rows_total`). Without this, every slider move would look like a sudden shift in real
-customers. A test checks that one page load adds exactly one row to drift monitoring.
+separately (`churn_exploration_rows_total`). Without this, every submit would look like a sudden shift in real
+customers. Tests check that loading the page adds nothing to drift monitoring, and that one submit adds
+exactly one row, including after the page redraws.
 
 ## Errors
 
@@ -66,7 +78,8 @@ customers. A test checks that one page load adds exactly one row to drift monito
 |---|---|
 | Field missing | "Please fill in: …" and no request is sent |
 | API rejects input (422) | Each rejected field with its friendly label and the API's message |
-| API down or timed out | "The prediction service isn't reachable", how to start it, and a **Retry** button |
+| API down on page load | "The prediction service isn't reachable", how to start it, and a **Retry** button |
+| API down when submitting | The same message, telling you to press **Get prediction** again |
 | API up but no model promoted (503) | "No model loaded", pointing to train/promote, with Retry |
 | Scenario scoring fails | The main result still shows. The tab shows a warning. |
 
@@ -77,12 +90,11 @@ logs and stores nothing about inputs or results, and the API rejects unknown fie
 
 ## Screen sizes
 
-Wide layout with the sidebar open on desktop. On phones (checked at 375 px) the sidebar starts
-collapsed so the result shows first, and the intro tells phone users how to open it. No horizontal
-scrolling.
+Two columns on desktop. On phones (checked at 375 px) the form comes first with a full-width button, and
+the prediction stacks below it. A "Prediction ready" notification appears after submitting. No horizontal scrolling.
 
 ## Screenshots (for the README)
 
-Captured from the Docker stack in a 1200×750 viewport: `docs/images/explorer_1_overview.jpg`,
-`explorer_2_what_if.jpg`, `explorer_3_over_time.jpg`. **Use a new filename when replacing an image**,
+Captured from the Docker stack in a 1200×750 viewport: `docs/images/explorer_v3_1_form.jpg`,
+`explorer_v3_2_result.jpg`, `explorer_v3_3_what_if.jpg`. **Use a new filename when replacing an image**,
 because GitHub and browsers cache README images by URL.

@@ -31,7 +31,7 @@ Results from actual runs:
   test 3.13, smoke, docker).
   [Run log](https://github.com/pranaypanchal22/churn-mlops/actions/runs/40808515907).
 
-- Windows / Python 3.13.5, after the interactive frontend update: 135 passed. `ruff check` and `ruff format --check` are clean. Line
+- Windows / Python 3.13.5, after the submit-flow frontend update: 136 passed. `ruff check` and `ruff format --check` are clean. Line
   coverage is 95% across `churn` and `frontend`.
 - Linux / Python 3.11 (`python:3.11-slim` container, same steps as the workflow), at the end of Phase 9: ruff
   clean, full suite passed, smoke run passed (synthetic data → train → promote → serve →

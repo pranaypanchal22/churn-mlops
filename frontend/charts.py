@@ -92,7 +92,8 @@ def what_if_chart(rows: pd.DataFrame, current: float, threshold: float) -> alt.L
             color=alt.Color(
                 "what:N",
                 scale=alt.Scale(domain=["Now", "Decision line"], range=[NEUTRAL, LINE]),
-                legend=alt.Legend(title=None, orient="bottom"),
+                # Explained in the caption instead; a second legend overflows narrow columns.
+                legend=None,
             ),
         )
     )
